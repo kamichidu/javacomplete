@@ -27,9 +27,9 @@ let s:ARRAY_TYPE_MEMBERS = [
       \  {'kind': 'm',    'word': 'notify(',  'abbr': 'notify()',  'menu': 'void Object.notify()', },
       \  {'kind': 'm',    'word': 'notifyAll(',  'abbr': 'notifyAll()',  'menu': 'void Object.notifyAll()', },
       \  {'kind': 'm',    'word': 'toString(',  'abbr': 'toString()',  'menu': 'String toString()', },
-      \  {'kind': 'm',    'word': 'wait(',  'abbr': 'wait()',  'menu': 'void Object.wait() throws InterruptedException', },
-      \  {'kind': 'm', 'dup': 1, 'word': 'wait(',  'abbr': 'wait()',  'menu': 'void Object.wait(long timeout) throws InterruptedException', },
-      \  {'kind': 'm', 'dup': 1, 'word': 'wait(',  'abbr': 'wait()',  'menu': 'void Object.wait(long timeout, int nanos) throws InterruptedException', }]
+      \  {'kind': 'm',    'word': 'wait(',  'abbr': 'wait()',  'menu': 'void Object.wait()', },
+      \  {'kind': 'm', 'dup': 1, 'word': 'wait(',  'abbr': 'wait()',  'menu': 'void Object.wait(long timeout)', },
+      \  {'kind': 'm', 'dup': 1, 'word': 'wait(',  'abbr': 'wait()',  'menu': 'void Object.wait(long timeout, int nanos)', }]
 
 let s:ARRAY_TYPE_INFO = {'tag': 'CLASSDEF', 'name': '[', 'ctors': [],
       \     'fields': [{'n': 'length', 'm': '1', 't': 'int'}],
@@ -41,9 +41,9 @@ let s:ARRAY_TYPE_INFO = {'tag': 'CLASSDEF', 'name': '[', 'ctors': [],
       \  {'n': 'notify',    'm': '100010001',  'r': 'void',  'p': [],    'd': 'void Object.notify()'},
       \  {'n': 'notifyAll','m': '100010001',  'r': 'void',  'p': [],    'd': 'void Object.notifyAll()'},
       \  {'n': 'toString', 'm': '1',     'r': 'String',  'p': [],    'd': 'String Object.toString()'},
-      \  {'n': 'wait',    'm': '10001',    'r': 'void',  'p': [],    'd': 'void Object.wait() throws InterruptedException'},
-      \  {'n': 'wait',    'm': '100010001',  'r': 'void',  'p': ['long'],    'd': 'void Object.wait(long timeout) throws InterruptedException'},
-      \  {'n': 'wait',    'm': '10001',    'r': 'void',  'p': ['long','int'],  'd': 'void Object.wait(long timeout, int nanos) throws InterruptedException'},
+      \  {'n': 'wait',    'm': '10001',    'r': 'void',  'p': [],    'd': 'void Object.wait()'},
+      \  {'n': 'wait',    'm': '100010001',  'r': 'void',  'p': ['long'],    'd': 'void Object.wait(long timeout)'},
+      \  {'n': 'wait',    'm': '10001',    'r': 'void',  'p': ['long','int'],  'd': 'void Object.wait(long timeout, int nanos)'},
       \    ]}
 
 let s:PRIMITIVE_TYPE_INFO = {'tag': 'CLASSDEF', 'name': '!', 'fields': [{'n': 'class','m': '1','t': 'Class'}]}
