@@ -2763,7 +2763,14 @@ fu! s:DoGetMethodList(methods, ...)
   let paren = a:0 == 0 || !a:1 ? '(' : ''
   let s = ''
   for method in a:methods
-    let s .= "{'kind':'" . (s:IsStatic(method.m) ? "M" : "m") . "','word':'" . method.n . paren . "','abbr':'" . method.n . "()','menu':'" . method.d . "','dup':'1'},"
+    " Substitute throws
+    let method.d = substitute(method.d, '\s\+throws\s\+.*', '', '')
+    let s .= "{
+          \ 'kind':'" . (s:IsStatic(method.m) ? "M" : "m") . "',
+          \ 'word':'" . method.n . paren . "',
+          \ 'abbr':'" . method.n . "()',
+          \ 'menu':'" . method.d . "',
+          \ 'dup':'1'},"
   endfor
   return s
 endfu
