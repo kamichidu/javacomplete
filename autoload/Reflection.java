@@ -10,10 +10,22 @@
  * 
  */
 
-import java.lang.reflect.*;
-import java.io.*;
-import java.util.*;
-import java.util.zip.*;
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 class Reflection {
   static final String VERSION = "0.77";
@@ -47,78 +59,97 @@ class Reflection {
 
   static boolean debug_mode = false;
 
-  static Hashtable htClasspath = new Hashtable();
+  static Map<String, String> htClasspath = new HashMap<String, String>();
 
+  /**
+   * check a fqn (fully qualified name).
+   *
+   * @param fqn fully qualified name
+   * @return if fqn is existant class name, otherwise false
+   */
   public static boolean existed(String fqn) {
-    boolean result = false;
-    try {
+    try{
       Class.forName(fqn);
-      result = true;
+
+      return true;
     }
-    catch (Exception ex) {
+    catch(Exception ex){
+      return false;
     }
-    return result;
   }
 
-  public static String existedAndRead(String fqns) {
-    Hashtable mapPackages = new Hashtable();  // qualified name --> StringBuffer
-    Hashtable mapClasses = new Hashtable();    // qualified name --> StringBuffer
+  public static String existedAndRead(Iterable<? extends CharSequence> fqns) {
+    final Map<String, StringBuilder> mapPackages = new HashMap<String, StringBuilder>(); // qualified name --> StringBuffer
+    final Map<String, Appendable> mapClasses = new HashMap<String, Appendable>();  // qualified name --> StringBuffer
 
-    for (StringTokenizer st = new StringTokenizer(fqns, ","); st.hasMoreTokens(); ) {
-      String fqn = st.nextToken();
-      try {
-        Class clazz = Class.forName(fqn);
+    for(final CharSequence fqn : fqns){
+      try{
+        final Class<?> clazz = Class.forName(fqn.toString());
+
         putClassInfo(mapClasses, clazz);
       }
-      catch (Exception ex) {
-        String binaryName = fqn;
+      catch(Exception ex){
+        String binaryName = fqn.toString();
         boolean found = false;
-        while (true) {
-          try {
+        while(true){
+          try{
             int lastDotPos = binaryName.lastIndexOf('.');
-            if (lastDotPos == -1)
+            if(lastDotPos == -1){
               break;
-            binaryName = binaryName.substring(0, lastDotPos) + '$' + binaryName.substring(lastDotPos+1, binaryName.length());
-            Class clazz = Class.forName(binaryName);
+            }
+            binaryName = binaryName.substring(0, lastDotPos) + '$' + binaryName.substring(lastDotPos + 1, binaryName.length());
+            final Class<?> clazz = Class.forName(binaryName);
+
             putClassInfo(mapClasses, clazz);
+
             found = true;
             break;
           }
-          catch (Exception e) {
+          catch(Exception e){
           }
         }
-        if (!found)
-          putPackageInfo(mapPackages, fqn);
+        if(!found){
+          putPackageInfo(mapPackages, fqn.toString());
+        }
       }
     }
 
-    if (mapPackages.size() > 0 || mapClasses.size() > 0) {
-      StringBuffer sb = new StringBuffer(4096);
+    if(mapPackages.size() > 0 || mapClasses.size() > 0){
+      final StringBuilder sb = new StringBuilder(4096);
+
       sb.append("{");
-      for (Enumeration e = mapPackages.keys(); e.hasMoreElements(); ) {
-        String s = (String)e.nextElement();
-        sb.append("'").append( s.replace('$', '.') ).append("':").append(mapPackages.get(s)).append(",");
+      for(final String s : mapPackages.keySet()){
+        sb.append("'").append(s.replace('$', '.')).append("':").append(mapPackages.get(s)).append(",");
       }
-      for (Enumeration e = mapClasses.keys(); e.hasMoreElements(); ) {
-        String s = (String)e.nextElement();
-        sb.append("'").append( s.replace('$', '.') ).append("':").append(mapClasses.get(s)).append(",");
+      for(final String s : mapClasses.keySet()){
+        sb.append("'").append(s.replace('$', '.')).append("':").append(mapClasses.get(s)).append(",");
       }
       sb.append("}");
+
       return sb.toString();
     }
-    else
+    else{
       return "";
+    }
   }
 
-  private static String getPackageList(String fqn) {
-    Hashtable mapPackages = new Hashtable();
+  private static String getPackageList(String fqn){
+    final Map<String, CharSequence> mapPackages = new HashMap<String, CharSequence>();
+
     putPackageInfo(mapPackages, fqn);
-    return mapPackages.size() > 0 ? mapPackages.get(fqn).toString() : "";
+
+    if(mapPackages.containsKey(fqn)){
+        return mapPackages.get(fqn).toString();
+    }
+    else{
+        return "";
+    }
   }
 
-  private static Hashtable collectClassPath() {
-    if (!htClasspath.isEmpty())
+  private static Map<String, String> collectClassPath(){
+    if(!htClasspath.isEmpty()){
       return htClasspath;
+    }
 
     // runtime classes
     if ("Kaffe".equals(System.getProperty("java.vm.name"))) {
@@ -147,24 +178,24 @@ class Reflection {
     }
 
     // ext
-    String extdirs = System.getProperty("java.ext.dirs");
-    for (StringTokenizer st = new StringTokenizer(extdirs, File.pathSeparator); st.hasMoreTokens(); ) {
-      addClasspathesFromDir(st.nextToken() + File.separator);
+    final String extdirs = System.getProperty("java.ext.dirs");
+    for(final String extdir : extdirs.split(Pattern.quote(File.pathSeparator))){
+      addClasspathesFromDir(extdir + File.separator);
     }
 
     // user classpath
-    String classPath = System.getProperty("java.class.path");
-    StringTokenizer st = new StringTokenizer(classPath, File.pathSeparator);
-    while (st.hasMoreTokens()) {
-      String path = st.nextToken();
-      File f = new File(path);
-      if (!f.exists())
-        continue;
+    final String classPath = System.getProperty("java.class.path");
+    for(final String path : classPath.split(Pattern.quote(File.pathSeparator))){
+      final File f = new File(path);
 
-      if (path.endsWith(".jar") || path.endsWith(".zip"))
+      if(!f.exists()){
+        continue;
+      }
+
+      if(path.endsWith(".jar") || path.endsWith(".zip")){
         htClasspath.put(f.toString(), "");
-      else {
-        if (f.isDirectory())
+      }
+      else if(f.isDirectory()){
           htClasspath.put(f.toString(), "");
       }
     }
@@ -196,36 +227,41 @@ class Reflection {
   /**
    * If name is empty, put all loadable package info into map once.
    */
-  private static void putPackageInfo(Hashtable map, String name) {
-    String prefix = name.replace('.', '/') + "/";
-    Hashtable subpackages = new Hashtable();
-    Hashtable classes = new Hashtable();
-    for (Enumeration e = collectClassPath().keys(); e.hasMoreElements(); ) {
-      String path = (String)e.nextElement();
-      if (path.endsWith(".jar") || path.endsWith(".zip"))
+  private static void putPackageInfo(Map<? super String, ? super StringBuilder> map, String name){
+    final String prefix = name.replace('.', '/') + "/";
+
+    final Map<String, String> subpackages = new HashMap<String, String>();
+    final Map<String, String> classes = new HashMap<String, String>();
+
+    for(final String path : collectClassPath().keySet()){
+      if(path.endsWith(".jar") || path.endsWith(".zip")){
         appendListFromJar(subpackages, classes, path, prefix);
-      else
+      }
+      else{
         appendListFromFolder(subpackages, classes, path, prefix);
+      }
     }
 
-    if (subpackages.size() > 0 || classes.size() > 0) {
-      StringBuffer sb = new StringBuffer(1024);
+    if(!subpackages.isEmpty() || !classes.isEmpty()){
+      final StringBuilder sb = new StringBuilder(1024);
+
       sb.append("{'tag':'PACKAGE','subpackages':[");
-      for (Enumeration e = subpackages.keys(); e.hasMoreElements(); ) {
-        sb.append("'").append(e.nextElement()).append("',");
+      for(final String key : subpackages.keySet()) {
+        sb.append("'").append(key).append("',");
       }
       sb.append("],'classes':[");
-      for (Enumeration e = classes.keys(); e.hasMoreElements(); ) {
-        sb.append("'").append(e.nextElement()).append("',");
+      for(final String key : classes.keySet()){
+        sb.append("'").append(key).append("',");
       }
       sb.append("]}");
-      map.put(name, sb.toString());
+
+      map.put(name, sb);
     }
   }
 
-  public static void appendListFromJar(Hashtable subpackages, Hashtable classes, String path, String prefix) {
-    try {
-      for (Enumeration entries = new ZipFile(path).entries(); entries.hasMoreElements(); ) {
+  public static void appendListFromJar(Map<String, String> subpackages, Map<String, String> classes, String path, String prefix) {
+    try{
+      for(Enumeration<? extends ZipEntry> entries = new ZipFile(path).entries(); entries.hasMoreElements(); ) {
         String entry = entries.nextElement().toString();
         int len = entry.length();
         if (entry.endsWith(".class") && entry.indexOf('$') == -1
@@ -248,7 +284,7 @@ class Reflection {
     }
   }
 
-  public static void appendListFromFolder(Hashtable subpackages, Hashtable classes, String path, String prefix) {
+  public static void appendListFromFolder(Map<String, String> subpackages, Map<String, String> classes, String path, String prefix) {
     try {
       String fullPath = path + "/" + prefix;
       File file = new File(fullPath);
@@ -278,47 +314,50 @@ class Reflection {
 
   // generate information of all packages in jar files.
   public static String getPackageList() {
-    Hashtable map = new Hashtable();
+    final Map<String, StringBuilder[]> map = new HashMap<String, StringBuilder[]>();
 
-    for (Enumeration e = collectClassPath().keys(); e.hasMoreElements(); ) {
-      String path = (String)e.nextElement();
-      if (path.endsWith(".jar") || path.endsWith(".zip"))
+    for(final String path : collectClassPath().keySet()){
+      if(path.endsWith(".jar") || path.endsWith(".zip")){
         appendListFromJar(path, map);
+      }
     }
 
-    StringBuffer sb = new StringBuffer(4096);
+    final StringBuilder sb = new StringBuilder(4096);
+
     sb.append("{");
     //sb.append("'*':'").append( map.remove("") ).append("',");  // default package
-    for (Enumeration e = map.keys(); e.hasMoreElements(); ) {
-      String s = (String)e.nextElement();
-      StringBuffer[] sbs = (StringBuffer[])map.get(s);
+    for(final String s : map.keySet()){
+      final StringBuilder[] sbs = map.get(s);
+
       sb.append("'").append( s.replace('/', '.') ).append("':")
         .append("{'tag':'PACKAGE'");
-      if (sbs[INDEX_PACKAGE].length() > 0)
+      if(sbs[INDEX_PACKAGE].length() > 0){
         sb.append(",'subpackages':[").append(sbs[INDEX_PACKAGE]).append("]");
-      if (sbs[INDEX_CLASS].length() > 0)
+      }
+      if(sbs[INDEX_CLASS].length() > 0){
         sb.append(",'classes':[").append(sbs[INDEX_CLASS]).append("]");
+      }
       sb.append("},");
     }
     sb.append("}");
-    return sb.toString();
 
+    return sb.toString();
   }
 
-  public static void appendListFromJar(String path, Hashtable map) {
-    try {
-      for (Enumeration entries = new ZipFile(path).entries(); entries.hasMoreElements(); ) {
+  public static void appendListFromJar(String path, Map<String, StringBuilder[]> map) {
+    try{
+      for(Enumeration<? extends ZipEntry> entries = new ZipFile(path).entries(); entries.hasMoreElements(); ) {
         String entry = entries.nextElement().toString();
         int len = entry.length();
-        if (entry.endsWith(".class") && entry.indexOf('$') == -1) {
-          int slashpos = entry.lastIndexOf('/');
+        if(entry.endsWith(".class") && entry.indexOf('$') == -1){
+          final int slashpos = entry.lastIndexOf('/');
           String parent = entry.substring(0, slashpos);
           String child  = entry.substring(slashpos+1, len-6);
           putItem(map, parent, child, INDEX_CLASS);
 
-          slashpos = parent.lastIndexOf('/');
-          if (slashpos != -1) {
-            AddToParent(map, parent.substring(0, slashpos), parent.substring(slashpos+1));
+          final int lastSlashPos = parent.lastIndexOf('/');
+          if(lastSlashPos != -1){
+            addToParent(map, parent.substring(0, lastSlashPos), parent.substring(lastSlashPos + 1));
           }
         }
       }
@@ -328,32 +367,42 @@ class Reflection {
     }
   }
 
-  public static void putItem(Hashtable map, String parent, String child, int index) {
-    StringBuffer[] sbs = (StringBuffer[])map.get(parent);
-    if (sbs == null) {
-      sbs = new StringBuffer[] {  new StringBuffer(256),     // packages
-        new StringBuffer(256)    // classes
+  public static void putItem(Map<String, StringBuilder[]> map, String parent, String child, int index) {
+    final StringBuilder[] sbs;
+
+    if(map.containsKey(parent)){
+      sbs = map.get(parent);
+    }
+    else{
+      sbs = new StringBuilder[]{
+        new StringBuilder(256), // packages
+        new StringBuilder(256)  // classes
       };
     }
-    if (sbs[index].toString().indexOf("'" + child + "',") == -1)
+
+    if(sbs[index].toString().indexOf("'" + child + "',") == -1){
       sbs[index].append("'").append(child).append("',");
+    }
+
     map.put(parent, sbs);
   }
 
-  public static void AddToParent(Hashtable map, String parent, String child) {
+  public static void addToParent(Map<String, StringBuilder[]> map, String parent, String child) {
     putItem(map, parent, child, INDEX_PACKAGE);
 
     int slashpos = parent.lastIndexOf('/');
-    if (slashpos != -1) {
-      AddToParent(map, parent.substring(0, slashpos), parent.substring(slashpos+1));
+    if(slashpos != -1){
+      addToParent(map, parent.substring(0, slashpos), parent.substring(slashpos+1));
     }
   }
 
 
-  public static String getClassInfo(String className) {
-    Hashtable mapClasses = new Hashtable();
-    try {
-      Class clazz = Class.forName(className);
+  public static CharSequence getClassInfo(CharSequence className) {
+    final Map<String, CharSequence> mapClasses = new HashMap<String, CharSequence>();
+
+    try{
+      final Class<?> clazz = Class.forName(className.toString());
+
       putClassInfo(mapClasses, clazz);
     }
     catch (Exception ex) {
@@ -363,108 +412,131 @@ class Reflection {
       return mapClasses.get(className).toString();  // return {...}
     }
     else if (mapClasses.size() > 1) {
-      StringBuffer sb = new StringBuffer(4096);
+      final StringBuilder sb = new StringBuilder(4096);
+
       sb.append("[");
-      for (Enumeration e = mapClasses.keys(); e.hasMoreElements(); ) {
-        String s = (String)e.nextElement();
+      for(final String s : mapClasses.keySet()) {
         sb.append(mapClasses.get(s)).append(",");
       }
       sb.append("]");
-      return sb.toString();        // return [...]
+      return sb;        // return [...]
     }
-    else
+    else{
       return "";
+    }
   }
 
-  private static void putClassInfo(Hashtable map, Class clazz) {
-    if (map.containsKey(clazz.getName()))
-      return ;
+  /**
+   * put clazz's information into map.
+   */
+  private static void putClassInfo(Map<? super String, ? super StringBuilder> map, Class<?> clazz) {
+    if(map.containsKey(clazz.getName())){
+      return;
+    }
 
-    try {
-      StringBuffer sb = new StringBuffer(1024);
+    try{
+      final StringBuilder sb = new StringBuilder(1024);
+
+      // base information
       sb.append("{")
         .append("'tag':'CLASSDEF',").append(NEWLINE)
         .append("'flags':'").append(Integer.toString(clazz.getModifiers(), 2)).append("',").append(NEWLINE)
-        .append("'name':'").append(clazz.getName().replace('$', '.')).append("',").append(NEWLINE)
+        .append("'name':'").append(clazz.getCanonicalName()).append("',").append(NEWLINE)
         //.append("'package':'").append(clazz.getPackage().getName()).append("',").append(NEWLINE)  // no getPackage() in JDK1.1
         .append("'classpath':'1',").append(NEWLINE)
-        .append("'fqn':'").append(clazz.getName().replace('$', '.')).append("',").append(NEWLINE);
+        .append("'fqn':'").append(clazz.getCanonicalName()).append("',").append(NEWLINE)
+      ;
 
-      Class[] interfaces = clazz.getInterfaces();
-      if (clazz.isInterface()) {
-        sb.append("'extends':[");
-      } else {
-        Class superclass = clazz.getSuperclass();
-        if (superclass != null && !"java.lang.Object".equals(superclass.getName())) {
-          sb.append("'extends':['").append(superclass.getName().replace('$', '.')).append("'],").append(NEWLINE);
-          putClassInfo(map, superclass);  // !!
+      // super class information
+      {
+        if(clazz.isInterface()){
+          sb.append("'extends':[");
         }
-        sb.append("'implements':[");
-      }
-      for (int i = 0, n = interfaces.length; i < n; i++) {
-        sb.append("'").append(interfaces[i].getName().replace('$', '.')).append("',");
-        putClassInfo(map, interfaces[i]);      // !!
-      }
-      sb.append("],").append(NEWLINE);;
+        else{
+          final Class<?> superclass = clazz.getSuperclass();
 
-      Constructor[] ctors = clazz.getConstructors();
-      sb.append("'ctors':[");
-      for (int i = 0, n = ctors.length; i < n; i++) {
-        Constructor ctor = ctors[i];
-        sb.append("{");
-        appendModifier(sb, ctor.getModifiers());
-        appendParameterTypes(sb, ctor.getParameterTypes());
-        sb.append(KEY_DESCRIPTION).append("'").append(ctors[i].toString()).append("'");
-        sb.append("},").append(NEWLINE);
-      }
-      sb.append("], ").append(NEWLINE);
+          if(superclass != null && !Object.class.equals(superclass)){
+            sb.append("'extends':['").append(superclass.getCanonicalName()).append("'],").append(NEWLINE);
 
-      Field[] fields = clazz.getFields();
-      //java.util.Arrays.sort(fields, comparator);
-      sb.append("'fields':[");
-      for (int i = 0, n = fields.length; i < n; i++) {
-        Field f = fields[i];
-        int modifier = f.getModifiers();
-        sb.append("{");
-        sb.append(KEY_NAME).append("'").append(f.getName()).append("',");
-        if (!f.getDeclaringClass().getName().equals(clazz.getName()))
-          sb.append(KEY_DECLARING_CLASS).append("'").append(f.getDeclaringClass().getName()).append("',");
-        appendModifier(sb, modifier);
-        sb.append(KEY_TYPE).append("'").append(f.getType().getName()).append("'");
-        sb.append("},").append(NEWLINE);
-      }
-      sb.append("], ").append(NEWLINE);
+            putClassInfo(map, superclass);  // !!
+          }
 
-      Method[] methods = clazz.getMethods();
-      //java.util.Arrays.sort(methods, comparator);
-      sb.append("'methods':[");
-      for (int i = 0, n = methods.length; i < n; i++) {
-        Method m = methods[i];
-        int modifier = m.getModifiers();
-        sb.append("{");
-        sb.append(KEY_NAME).append("'").append(m.getName()).append("',");
-        if (!m.getDeclaringClass().getName().equals(clazz.getName()))
-          sb.append(KEY_DECLARING_CLASS).append("'").append(m.getDeclaringClass().getName()).append("',");
-        appendModifier(sb, modifier);
-        sb.append(KEY_RETURNTYPE).append("'").append(m.getReturnType().getName()).append("',");
-        appendParameterTypes(sb, m.getParameterTypes());
-        sb.append(KEY_DESCRIPTION).append("'").append(m.toString()).append("'");
-        sb.append("},").append(NEWLINE);
-      }
-      sb.append("], ").append(NEWLINE);
+          sb.append("'implements':[");
+        }
+        for(final Class<?> ifclazz : clazz.getInterfaces()){
+          sb.append("'").append(ifclazz.getCanonicalName()).append("',");
 
-      Class[] classes = clazz.getClasses();
-      sb.append("'classes': [");
-      for (int i = 0, n = classes.length; i < n; i++) {
-        Class c = classes[i];
-        sb.append("'").append(c.getName().replace('$', '.')).append("',");
-        putClassInfo(map, c);      // !!
+          putClassInfo(map, ifclazz);      // !!
+        }
+        sb.append("],").append(NEWLINE);;
       }
-      sb.append("], ").append(NEWLINE);
+
+      // constructor information
+      {
+        sb.append("'ctors':[");
+        for(final Constructor<?> ctor : clazz.getConstructors()){
+          sb.append("{");
+
+          appendModifier(sb, ctor.getModifiers());
+          appendParameterTypes(sb, Arrays.asList(ctor.getParameterTypes()));
+
+          sb.append(KEY_DESCRIPTION).append("'").append(ctor.toString()).append("'");
+          sb.append("},").append(NEWLINE);
+        }
+        sb.append("], ").append(NEWLINE);
+      }
+
+      // field information
+      {
+        sb.append("'fields':[");
+        for(final Field f : clazz.getFields()){
+          int modifier = f.getModifiers();
+          sb.append("{");
+          sb.append(KEY_NAME).append("'").append(f.getName()).append("',");
+          if(!f.getDeclaringClass().equals(clazz)){
+            sb.append(KEY_DECLARING_CLASS).append("'").append(f.getDeclaringClass().getName()).append("',");
+          }
+          appendModifier(sb, modifier);
+          sb.append(KEY_TYPE).append("'").append(f.getType().getName()).append("'");
+          sb.append("},").append(NEWLINE);
+        }
+        sb.append("], ").append(NEWLINE);
+      }
+
+      // method information
+      {
+        sb.append("'methods':[");
+        for(final Method m : clazz.getMethods()){
+          int modifier = m.getModifiers();
+          sb.append("{");
+          sb.append(KEY_NAME).append("'").append(m.getName()).append("',");
+          if(!m.getDeclaringClass().getName().equals(clazz.getName())){
+            sb.append(KEY_DECLARING_CLASS).append("'").append(m.getDeclaringClass().getName()).append("',");
+          }
+          appendModifier(sb, modifier);
+          sb.append(KEY_RETURNTYPE).append("'").append(m.getReturnType().getName()).append("',");
+          appendParameterTypes(sb, Arrays.asList(m.getParameterTypes()));
+          sb.append(KEY_DESCRIPTION).append("'").append(m.toString()).append("'");
+          sb.append("},").append(NEWLINE);
+        }
+        sb.append("], ").append(NEWLINE);
+      }
+
+      // inner class information
+      {
+        sb.append("'classes': [");
+        for (final Class<?> c : clazz.getClasses()) {
+          sb.append("'").append(c.getName().replace('$', '.')).append("',");
+
+          putClassInfo(map, c);      // !!
+        }
+        sb.append("], ").append(NEWLINE);
+      }
 
       appendDeclaredMembers(map, clazz, sb);
 
       sb.append("}");
+
       map.put(clazz.getName(), sb);
     }
     catch (Exception ex) {
@@ -472,15 +544,16 @@ class Reflection {
     }
   }
 
-  private static void appendDeclaredMembers(Hashtable map, Class clazz, StringBuffer sb) {
-    Constructor[] ctors = clazz.getDeclaredConstructors();
+  private static void appendDeclaredMembers(Map<? super String, ? super StringBuilder> map, Class<?> clazz, StringBuilder sb) {
+    final Constructor<?>[] ctors = clazz.getDeclaredConstructors();
+
     sb.append("'declared_ctors':[");
     for (int i = 0, n = ctors.length; i < n; i++) {
-      Constructor ctor = ctors[i];
+      final Constructor<?> ctor = ctors[i];
       if (!Modifier.isPublic(ctor.getModifiers())) {
         sb.append("{");
         appendModifier(sb, ctor.getModifiers());
-        appendParameterTypes(sb, ctor.getParameterTypes());
+        appendParameterTypes(sb, Arrays.asList(ctor.getParameterTypes()));
         sb.append(KEY_DESCRIPTION).append("'").append(ctors[i].toString()).append("'");
         sb.append("},").append(NEWLINE);
       }
@@ -516,17 +589,17 @@ class Reflection {
           sb.append(KEY_DECLARING_CLASS).append("'").append(m.getDeclaringClass().getName()).append("',");
         appendModifier(sb, modifier);
         sb.append(KEY_RETURNTYPE).append("'").append(m.getReturnType().getName()).append("',");
-        appendParameterTypes(sb, m.getParameterTypes());
+        appendParameterTypes(sb, Arrays.asList(m.getParameterTypes()));
         sb.append(KEY_DESCRIPTION).append("'").append(m.toString()).append("'");
         sb.append("},").append(NEWLINE);
       }
     }
     sb.append("], ").append(NEWLINE);
 
-    Class[] classes = clazz.getDeclaredClasses();
+    final Class<?>[] classes = clazz.getDeclaredClasses();
     sb.append("'declared_classes': [");
     for (int i = 0, n = classes.length; i < n; i++) {
-      Class c = classes[i];
+      final Class<?> c = classes[i];
       if (!Modifier.isPublic(c.getModifiers())) {
         sb.append("'").append(c.getName().replace('$', '.')).append("',");
         putClassInfo(map, c);      // !!
@@ -535,41 +608,69 @@ class Reflection {
     sb.append("], ").append(NEWLINE);
   }
 
-  private static void appendModifier(StringBuffer sb, int modifier) {
-    sb.append(KEY_MODIFIER).append("'").append(Integer.toString(modifier, 2)).append("', ");
+  private static void appendModifier(StringBuilder appendable, int modifier) {
+    appendable
+      .append(KEY_MODIFIER)
+      .append("'")
+      .append(Integer.toString(modifier, 2))
+      .append("', ")
+    ;
   }
 
-  private static void appendParameterTypes(StringBuffer sb, Class[] paramTypes) {
-    if (paramTypes.length == 0) return ;
+  private static void appendParameterTypes(StringBuilder sb, Iterable<? extends Class<?>> paramTypes) {
+    if(isEmpty(paramTypes)){
+      return;
+    }
 
     sb.append(KEY_PARAMETERTYPES).append("[");
-    for (int j = 0; j < paramTypes.length; j++) {
-      sb.append("'").append(paramTypes[j].getName()).append("',");
+    for(final Class<?> paramType : paramTypes){
+      sb.append("'").append(paramType.getName()).append("',");
     }
     sb.append("],");
   }
 
-  private static boolean isBlank(String str) {
-    int len;
-    if (str == null || (len = str.length()) == 0)
-      return true;
-    for (int i = 0; i < len; i++)
-      if ((Character.isWhitespace(str.charAt(i)) == false))
+  private static boolean isEmpty(Iterable<?> it){
+    if(it == null){
+      throw new NullPointerException();
+    }
+
+    if(it instanceof Collection){
+      return ((Collection)it).isEmpty();
+    }
+    else{
+      for(final Object o : it){
         return false;
+      }
+      return true;
+    }
+  }
+
+  private static boolean isBlank(String str) {
+    final int len;
+    if(str == null || (len = str.length()) == 0){
+      return true;
+    }
+    for(int i = 0; i < len; i++){
+      if(!Character.isWhitespace(str.charAt(i))){
+        return false;
+      }
+    }
     return true;
   }
 
   // test methods
 
-  static void debug(String s) {
-    if (debug_mode)
+  static void debug(CharSequence s) {
+    if(debug_mode){
       System.out.println(s);
-  }
-  static void output(String s) {
-    if (!debug_mode)
-      System.out.print(s);
+    }
   }
 
+  static void output(CharSequence s) {
+    if(!debug_mode){
+      System.out.print(s);
+    }
+  }
 
   private static void usage() {
     System.out.println("Reflection for javacomplete (" + VERSION + ")");
@@ -589,7 +690,7 @@ class Reflection {
     System.out.println("  -v  version");
   }
 
-  public static void main(String[] args) {
+  public static void main(String[] args){
     String className = null;
     int option = 0x0;
     boolean wholeClassInfo = false;
@@ -600,11 +701,13 @@ class Reflection {
     boolean checkExistedAndRead = false;
     boolean allPackageInfo = false;
 
-    for (int i = 0, n = args.length; i < n && !isBlank(args[i]); i++) {
+    for(int i = 0, n = args.length; i < n && !isBlank(args[i]); i++){
+      final String arg = args[i];
+
       //debug(args[i]);
-      if (args[i].charAt(0) == '-') {
-        if (args[i].length() > 1) {
-          switch (args[i].charAt(1)) {
+      if(arg.charAt(0) == '-'){
+        if(arg.length() > 1){
+          switch(arg.charAt(1)){
             case 'a':
               break;
             case 'c':  // request constructors
@@ -646,25 +749,34 @@ class Reflection {
           }
         }
       }
-      else {
-        className = args[i];
+      else{
+        className = arg;
       }
     }
-    if (className == null && (option & RETURN_ALL_PACKAGE_INFO) != RETURN_ALL_PACKAGE_INFO) {
+
+    if(className == null && (option & RETURN_ALL_PACKAGE_INFO) != RETURN_ALL_PACKAGE_INFO){
       return;
     }
-    if (option == 0x0)
-      option = OPTION_INSTANCE;
 
-    if (wholeClassInfo)
-      output( getClassInfo(className) );
-    else if ((option & RETURN_ALL_PACKAGE_INFO) == RETURN_ALL_PACKAGE_INFO)
-      output( getPackageList() );
-    else if (checkExistedAndRead)
-      output( existedAndRead(className) );
-    else if (checkExisted)
-      output( String.valueOf(existed(className)) );
-    else if (listPackageContent)
-      output( getPackageList(className) );
+    if(option == 0x0){
+      option = OPTION_INSTANCE;
+    }
+
+    if(wholeClassInfo){
+      output(getClassInfo(className));
+    }
+    else if((option & RETURN_ALL_PACKAGE_INFO) == RETURN_ALL_PACKAGE_INFO){
+      output(getPackageList());
+    }
+    else if(checkExistedAndRead){
+      // make unique set
+      output(existedAndRead(new HashSet<String>(Arrays.asList(className.split(",")))));
+    }
+    else if(checkExisted){
+      output(String.valueOf(existed(className)));
+    }
+    else if(listPackageContent){
+      output(getPackageList(className));
+    }
   }
 }
