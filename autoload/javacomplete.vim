@@ -9,13 +9,13 @@
 
 " constants              {{{1
 " input context type
-let s:CONTEXT_AFTER_DOT     = 1
-let s:CONTEXT_METHOD_PARAM  = 2
-let s:CONTEXT_IMPORT        = 3
-let s:CONTEXT_IMPORT_STATIC = 4
-let s:CONTEXT_PACKAGE_DECL  = 6
-let s:CONTEXT_NEED_TYPE     = 7
-let s:CONTEXT_OTHER         = 0
+let s:CONTEXT_AFTER_DOT     = 'after dot' " 1
+let s:CONTEXT_METHOD_PARAM  = 'method param' " 2
+let s:CONTEXT_IMPORT        = 'import' " 3
+let s:CONTEXT_IMPORT_STATIC = 'static import' " 4
+let s:CONTEXT_PACKAGE_DECL  = 'package declaration' " 6
+let s:CONTEXT_NEED_TYPE     = 'need type' " 7
+let s:CONTEXT_OTHER         = 'other' " 0
 
 
 let s:ARRAY_TYPE_MEMBERS = [
