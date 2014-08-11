@@ -1,2 +1,4 @@
 doc/tags
 autoload/Reflection.class
+.bundle/
+*.lock
