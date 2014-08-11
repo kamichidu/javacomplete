@@ -5,6 +5,8 @@ This is javacomplete, an omni-completion script of JAVA language for vim 7.
 It includes `javacomplete.vim`, `java_parser.vim`, `Reflection.java`, and 
 `javacomplete.txt`
 
+[![Build Status](https://travis-ci.org/kamichidu/javacomplete.svg?branch=master)](https://travis-ci.org/kamichidu/javacomplete)
+
 Features:
 ---
 
