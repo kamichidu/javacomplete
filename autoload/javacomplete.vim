@@ -120,6 +120,8 @@ let s:context_prototype= {
 let s:cache = {}  " FQN -> member list, e.g. {'java.lang.StringBuffer': classinfo, 'java.util': packageinfo, '/dir/TopLevelClass.java': compilationUnit}
 let s:files = {}  " source file path -> properties, e.g. {filekey: {'unit': compilationUnit, 'changedtick': tick, }}
 
+let s:reflection= javacomplete#reflection#new()
+
 let s:source= {}
 
 function! s:source.get_complete_pos(context)
@@ -306,7 +308,9 @@ function! s:CompleteAfterWord(context)
 
   " packages in jar files
   if !exists('s:all_packages_in_jars_loaded')
-    call s:DoGetInfoByReflection('-', '-P')
+    " {'package name': {'tag': 'PACKAGE', 'classes': ['simple class name', ...]}}
+    let packages= s:reflection.packages()
+    " TODO: packages into s:cache
     let s:all_packages_in_jars_loaded = 1
   endif
 
@@ -1053,7 +1057,7 @@ fu! s:SearchStaticImports(name, fullmatch)
     endif
   endfor
   if commalist != ''
-    let res = s:RunReflection('-E', commalist, 's:SearchStaticImports in Batch')
+    let res = s:reflection.check_exists_and_read_class_info(commalist)
     if res =~ "^{'"
       let dict = eval(res)
       for key in keys(dict)
@@ -2137,15 +2141,6 @@ fu! s:Sort(ci)
 endfu
 
 " Function to run Reflection            {{{2
-fu! s:RunReflection(option, args, log)
-  let classpath = ''
-  if !exists('s:isjdk11')
-    let classpath = ' -classpath "' . s:ConvertToJavaPath(s:GetClassPath()) . '" '
-  endif
-
-  let cmd = javacomplete#GetJVMLauncher() . classpath . ' Reflection ' . a:option . ' "' . a:args . '"'
-  return s:P.system(cmd)
-endfu
 " class information              {{{2
 
 
@@ -2279,7 +2274,7 @@ fu! s:DoGetTypeInfoForFQN(fqns, srcpath, ...)
     endif
   endfor
   if !empty(commalist)
-    let res = s:RunReflection('-E', commalist, 'DoGetTypeInfoForFQN in Batch')
+    let res = s:reflection.check_exists_and_read_class_info(commalist)
     if res =~ "^{'"
       let dict = eval(res)
       for key in keys(dict)
@@ -2459,7 +2454,7 @@ endfu
 " See ClassInfoFactory.getClassInfo() in insenvim.
 function! s:DoGetReflectionClassInfo(fqn)
   if !has_key(s:cache, a:fqn)
-    let res = s:RunReflection('-C', a:fqn, 's:DoGetReflectionClassInfo')
+    let res = s:reflection.class_info(a:fqn)
     if res =~ '^{'
       let s:cache[a:fqn] = s:Sort(eval(res))
     elseif res =~ '^['
@@ -2631,31 +2626,6 @@ function! s:DoGetClassInfoFromTags(class)
 endfu
 
 " package information              {{{2
-
-fu! s:DoGetInfoByReflection(class, option)
-  if has_key(s:cache, a:class)
-    return s:cache[a:class]
-  endif
-
-  let res = s:RunReflection(a:option, a:class, 's:DoGetInfoByReflection')
-  if res =~ '^[{\[]'
-    let v = eval(res)
-    if type(v) == type([])
-      let s:cache[a:class] = sort(v)
-    elseif type(v) == type({})
-      if get(v, 'tag', '') =~# '^\(PACKAGE\|CLASSDEF\)$'
-        let s:cache[a:class] = v
-      else
-        call extend(s:cache, v, 'force')
-      endif
-    endif
-    unlet v
-  else
-    throw printf('javacomplete: %s', res)
-  endif
-
-  return get(s:cache, a:class, {})
-endfu
 
 " search in members              {{{2
 " TODO: what about default access?
@@ -2841,7 +2811,8 @@ fu! s:GetMembers(fqn, ...)
   let list = []
   let isClass = 0
 
-  let v = s:DoGetInfoByReflection(a:fqn, '-E')
+  " check existance and read information given fqn
+  let v = s:reflection.check_exists_and_read_class_info(a:fqn)
   if type(v) == type([])
     let list = v
   elseif type(v) == type({}) && v != {}

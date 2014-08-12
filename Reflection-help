@@ -1,0 +1,15 @@
+Reflection for javacomplete (0.77)
+  java [-classpath] Reflection [-c] [-d] [-e] [-h] [-v] [-p] [-s] name[,comma_separated_name_list]
+Options:
+  -a  list all members in alphabetic order
+  -c  list constructors
+  -C  return class info
+  -d  default strategy, i.e. instance fields, instance methods, static fields, static methods
+  -e  check class existed
+  -E  check class existed and read class information
+  -D  debug mode
+  -p  list package content
+  -P  print all package info in the Vim dictionary format
+  -s  list static fields and methods
+  -h  help
+  -v  version
