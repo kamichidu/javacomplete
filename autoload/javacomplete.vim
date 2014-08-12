@@ -121,12 +121,9 @@ let s:history = {}  "
 let s:source= {}
 
 function! s:source.get_complete_pos(context)
-    let s:et_whole = reltime()
     let start = col('.') - 1
-    let s:log = []
 
     let statement = s:GetStatement()
-    call s:WatchVariant('statement: "' . statement . '"')
 
     if statement =~ '[.0-9A-Za-z_]\s*$'
       let valid = 1
@@ -279,7 +276,6 @@ function! s:source.gather_candidates(context)
       unlet s:padding
     endif
 
-    call s:Debug('finish completion' . reltimestr(reltime(s:et_whole)) . 's')
     return result
   endif
 
@@ -400,7 +396,6 @@ function! s:CompleteAfterDot(expr)
 
 
   " 0. String literal
-  call s:Info('P0. "str".|')
   if items[-1] =~  '"$'
     return s:GetMemberList("java.lang.String")
   endif
@@ -431,7 +426,6 @@ function! s:CompleteAfterDot(expr)
   if i > 1
     " cases: "this.|", "super.|", "ClassName.this.|", "ClassName.super.|", "TypeName.class.|"
     if items[k] ==# 'class' || items[k] ==# 'this' || items[k] ==# 'super'
-      call s:Info('O1. ' . items[k] . ' ' . join(items[:k-1], '.'))
       let ti = s:DoGetClassInfo(items[k] == 'class' ? 'java.lang.Class' : join(items[:k-1], '.'))
       if !empty(ti)
         let itemkind = items[k] ==# 'this' ? 1 : items[k] ==# 'super' ? 2 : 0
@@ -444,7 +438,6 @@ function! s:CompleteAfterDot(expr)
     else
       let fqn = join(items[:i-1], '.')
       let srcpath = join(s:GetSourceDirs(expand('%:p'), s:GetPackageName()), ',')
-      call s:Info('O2. ' . fqn)
       call s:DoGetTypeInfoForFQN([fqn], srcpath)
       if get(get(s:cache, fqn, {}), 'tag', '') == 'CLASSDEF'
         let ti = s:cache[fqn]
@@ -470,13 +463,11 @@ function! s:CompleteAfterDot(expr)
 
       if s:IsKeyword(ident)
         " 1)
-        call s:Info('F1. "' . ident . '.|"')
         if ident ==# 'void' || s:IsBuiltinType(ident)
           let ti = s:PRIMITIVE_TYPE_INFO
           let itemkind = 11
 
           " 2)
-          call s:Info('F2. "' . ident . '.|"')
         elseif ident ==# 'this' || ident ==# 'super'
           let itemkind = ident ==# 'this' ? 1 : ident ==# 'super' ? 2 : 0
           let ti = s:DoGetClassInfo(ident)
@@ -485,7 +476,6 @@ function! s:CompleteAfterDot(expr)
       else
         " 3)
         let typename = s:GetDeclaredClassName(ident)
-        call s:Info('F3. "' . ident . '.|"  typename: "' . typename . '"')
         if (typename != '')
           if typename[0] == '[' || typename[-1:] == ']'
             let ti = s:ARRAY_TYPE_INFO
@@ -495,7 +485,6 @@ function! s:CompleteAfterDot(expr)
 
         else
           " 4)
-          call s:Info('F4. "TypeName.|"')
           let ti = s:DoGetClassInfo(ident)
           let itemkind = 11
 
@@ -505,7 +494,6 @@ function! s:CompleteAfterDot(expr)
 
           " 5)
           if empty(ti)
-            call s:Info('F5. "package.|"')
             unlet ti
             let ti = s:GetMembers(ident)  " s:DoGetPackegInfo(ident)
             let itemkind = 20
@@ -519,7 +507,6 @@ function! s:CompleteAfterDot(expr)
 
       " array type, return `class`: "int[] [].|", "java.lang.String[].|", "NestedClass[].|"
     elseif items[0] =~# s:RE_ARRAY_TYPE
-      call s:Info('array type. "' . items[0] . '"')
       let qid = substitute(items[0], s:RE_ARRAY_TYPE, '\1', '')
       if s:IsBuiltinType(qid) || (!s:HasKeyword(qid) && !empty(s:DoGetClassInfo(qid)))
         let ti = s:PRIMITIVE_TYPE_INFO
@@ -529,7 +516,6 @@ function! s:CompleteAfterDot(expr)
       " class instance creation expr:  "new String().|", "new NonLoadableClass().|"
       " array creation expr:  "new int[i=1] [val()].|", "new java.lang.String[].|"
     elseif items[0] =~ '^\s*new\s\+'
-      call s:Info('creation expr. "' . items[0] . '"')
       let subs = split(substitute(items[0], '^\s*new\s\+\(' .s:RE_QUALID. '\)\s*\([([]\)', '\1;\2', ''), ';')
       if subs[1][0] == '['
         let ti = s:ARRAY_TYPE_INFO
@@ -545,7 +531,6 @@ function! s:CompleteAfterDot(expr)
 
       " casting conversion:  "(Object)o.|"
     elseif items[0] =~ s:RE_CASTING
-      call s:Info('Casting conversion. "' . items[0] . '"')
       let subs = split(substitute(items[0], s:RE_CASTING, '\1;\2', ''), ';')
       let ti = s:DoGetClassInfo(subs[0])
 
@@ -554,7 +539,6 @@ function! s:CompleteAfterDot(expr)
       let subs = split(substitute(items[0], s:RE_ARRAY_ACCESS, '\1;\2', ''), ';')
       if get(subs, 1, '') !~ s:RE_BRACKETS
         let typename = s:GetDeclaredClassName(subs[0])
-        call s:Info('ArrayAccess. "' .items[0]. '.|"  typename: "' . typename . '"')
         if (typename != '')
           let ti = s:ArrayAccess(typename, items[0])
         endif
@@ -1339,7 +1323,6 @@ endfu
 " Parser.GetType() in insenvim
 function! s:GetDeclaredClassName(var)
   let var = s:Trim(a:var)
-  call s:Trace('GetDeclaredClassName for "' . var . '"')
   if var =~# '^\(this\|super\)$'
     return var
   endif
@@ -1375,7 +1358,6 @@ function! s:GetDeclaredClassName(var)
     let class = substitute(declaration, '^\(public\s\+\|protected\s\+\|private\s\+\|abstract\s\+\|static\s\+\|final\s\+\|native\s\+\)*', '', '')
     let class = substitute(class, '\s*\([a-zA-Z0-9_.]\+\)\(\[\]\)\?\s\+.*', '\1\2', '')
     let class = substitute(class, '\([a-zA-Z0-9_.]\)<.*', '\1', '')
-    call s:Info('class: "' . class . '" declaration: "' . declaration . '" for ' . a:var)
     let &ignorecase = ic
     if class != '' && class !=# a:var && class !=# 'import' && class !=# 'class'
       return class
@@ -1383,7 +1365,6 @@ function! s:GetDeclaredClassName(var)
   endif
 
   let &ignorecase = ic
-  call s:Trace('GetDeclaredClassName: cannot find')
   return ''
 endfunction
 
@@ -1496,7 +1477,6 @@ fu! s:SearchNameInAST(tree, name, targetPos, fullmatch)
 
   let result = []
   call s:TreeVisitor.visit(a:tree, {'result': result, 'pos': a:targetPos, 'name': a:name})
-  "call s:Info(a:name . ' ' . string(result) . ' line: ' . line('.') . ' col: ' . col('.')) . ' ' . a:targetPos
   return result
 endfu
 
@@ -1536,9 +1516,6 @@ fu! javacomplete#Searchdecl()
   " new Type(param1, param2)
   " this.field
   " super.field
-
-  let s:log = []
-
 
   " It may be an imported class.
   let imports = []
@@ -2127,55 +2104,9 @@ if has("autocmd")
   autocmd FileType java call s:SetCurrentFileKey()
 endif
 
-
-" Log utilities                {{{1
-fu! s:WatchVariant(variant)
-  "echoerr a:variant
-endfu
-
-" level
-"   5  off/fatal 
-"   4  error 
-"   3  warn
-"   2  info
-"   1  debug
-"   0  trace
-fu! javacomplete#SetLogLevel(level)
-  let s:loglevel = a:level
-endfu
-
-fu! javacomplete#GetLogLevel()
-  return exists('s:loglevel') ? s:loglevel : 3
-endfu
-
-fu! javacomplete#GetLogContent()
-  return s:log
-endfu
-
-fu! s:Trace(msg)
-  call s:Log(0, a:msg)
-endfu
-
-fu! s:Debug(msg)
-  call s:Log(1, a:msg)
-endfu
-
-fu! s:Info(msg)
-  call s:Log(2, a:msg)
-endfu
-
-fu! s:Log(level, key, ...)
-  if a:level >= javacomplete#GetLogLevel()
-    echo a:key
-    call add(s:log, a:key)
-  endif
-endfu
-
 fu! s:System(cmd, caller)
-  call s:WatchVariant(a:cmd)
   let t = reltime()
   let res = system(a:cmd)
-  call s:Debug(reltimestr(reltime(t)) . 's to exec "' . a:cmd . '" by ' . a:caller)
   return res
 endfu
 
@@ -2316,7 +2247,6 @@ fu! s:DoGetTypeInfoForFQN(fqns, srcpath, ...)
   endif
 
 
-  call s:Info('FQN1&2: ' . string(keys(files)))
   for fqn in keys(files)
     if !has_key(s:cache, fqn) || get(get(s:files, files[fqn], {}), 'modifiedtime', 0) != getftime(files[fqn])
       let ti = s:GetClassInfoFromSource(fqn[strridx(fqn, '.')+1:], files[fqn])
@@ -2380,7 +2310,6 @@ fu! s:DoGetClassInfo(class, ...)
       return ci
     endif
 
-    call s:Info('A0. ' . a:class)
     " this can be a local class or anonymous class as well as static type
     let t = get(s:SearchTypeAt(javacomplete#parse(), java_parser#MakePos(line('.')-1, col('.')-1)), -1, {})
     if !empty(t)
@@ -2440,7 +2369,6 @@ fu! s:DoGetClassInfo(class, ...)
   if filekey == s:GetCurrentFileKey()
     let simplename = typename[strridx(typename, '.')+1:]
     if s:FoundClassDeclaration(simplename) != 0
-      call s:Info('A1&2')
       let ci = s:GetClassInfoFromSource(simplename, '%')
       " do not cache it
       if !empty(ci)
@@ -2458,7 +2386,6 @@ fu! s:DoGetClassInfo(class, ...)
   " NOTE: PackageName.Ident, TypeName.Ident
   let fqn = s:SearchSingleTypeImport(typename, s:GetImports('imports_fqn', filekey))
   if !empty(fqn)
-    call s:Info('A3')
     call s:DoGetTypeInfoForFQN([fqn], srcpath)
     let ti = get(s:cache, fqn, {})
     if get(ti, 'tag', '') != 'CLASSDEF'
@@ -2469,7 +2396,6 @@ fu! s:DoGetClassInfo(class, ...)
 
   " 4 & 5
   " NOTE: Keeps the fqn of the same package first!!
-  call s:Info('A4&5')
   let fqns = [empty(packagename) ? typename : packagename . '.' . typename]
   for p in s:GetImports('imports_star', filekey)
     call add(fqns, p . typename)
@@ -2547,7 +2473,6 @@ fu! s:GetClassInfoFromSource(class, filename)
   endif
 
   if empty(ci)
-    call s:Info('Use java_parser.vim to generate class information')
     let unit = javacomplete#parse(a:filename)
     let targetPos = a:filename == '%' ? java_parser#MakePos(line('.')-1, col('.')-1) : -1
     for t in s:SearchTypeAt(unit, targetPos, 1)
