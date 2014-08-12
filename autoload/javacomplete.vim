@@ -1937,13 +1937,21 @@ endfunction
 
 " set string literal empty, remove comments, trim begining or ending spaces
 " test case: '   sb. /* block comment*/ append( "stringliteral" ) // comment '
-function! s:Prune(str, ...)
-  if a:str =~ '^\s*$' | return '' | endif
+function! s:Prune(s, ...)
+  " TODO:
+  let end_of_space= a:0 > 0
 
-  let str = substitute(a:str, '"\(\\\(["\\''ntbrf]\)\|[^"]\)*"', '""', 'g')
-  let str = substitute(str, '\/\/.*', '', 'g')
-  let str = s:RemoveBlockComments(str)
-  return a:0 > 0 ? str : str . ' '
+  if a:s =~# '^\s*$'
+    return ''
+  endif
+
+  let str= a:s
+  " clean up string literal
+  let str= substitute(str, '"\%(\\"\|[^"]\)*"', '""', 'g')
+  let str= substitute(str, '//.*', '', 'g')
+  let str= s:RemoveBlockComments(str)
+
+  return end_of_space ? str . ' ' : str
 endfunction
 
 " Given argument, replace block comments with spaces of same number
