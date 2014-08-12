@@ -17,36 +17,44 @@ let s:CONTEXT_PACKAGE_DECL  = 'package declaration' " 6
 let s:CONTEXT_NEED_TYPE     = 'need type' " 7
 let s:CONTEXT_OTHER         = 'other' " 0
 
+let s:ARRAY_TYPE_MEMBERS= [
+\   {'kind': 'f', 'dup': 0, 'word': 'length',     'abbr': 'length',      'menu': 'int'},
+\   {'kind': 'm', 'dup': 0, 'word': 'clone(',     'abbr': 'clone()',     'menu': 'Object clone()'},
+\   {'kind': 'm', 'dup': 0, 'word': 'equals(',    'abbr': 'equals()',    'menu': 'boolean equals(Object)'},
+\   {'kind': 'm', 'dup': 0, 'word': 'getClass(',  'abbr': 'getClass()',  'menu': 'Class Object.getClass()'},
+\   {'kind': 'm', 'dup': 0, 'word': 'hashCode(',  'abbr': 'hashCode()',  'menu': 'int hashCode()'},
+\   {'kind': 'm', 'dup': 0, 'word': 'notify(',    'abbr': 'notify()',    'menu': 'void Object.notify()'},
+\   {'kind': 'm', 'dup': 0, 'word': 'notifyAll(', 'abbr': 'notifyAll()', 'menu': 'void Object.notifyAll()'},
+\   {'kind': 'm', 'dup': 0, 'word': 'toString(',  'abbr': 'toString()',  'menu': 'String toString()'},
+\   {'kind': 'm', 'dup': 0, 'word': 'wait(',      'abbr': 'wait()',      'menu': 'void Object.wait()'},
+\   {'kind': 'm', 'dup': 1, 'word': 'wait(',      'abbr': 'wait()',      'menu': 'void Object.wait(long timeout)'},
+\   {'kind': 'm', 'dup': 1, 'word': 'wait(',      'abbr': 'wait()',      'menu': 'void Object.wait(long timeout, int nanos)'},
+\]
 
-let s:ARRAY_TYPE_MEMBERS = [
-      \  {'kind': 'm',    'word': 'clone(',  'abbr': 'clone()',  'menu': 'Object clone()', },
-      \  {'kind': 'm',    'word': 'equals(',  'abbr': 'equals()',  'menu': 'boolean equals(Object)', },
-      \  {'kind': 'm',    'word': 'getClass(',  'abbr': 'getClass()',  'menu': 'Class Object.getClass()', },
-      \  {'kind': 'm',    'word': 'hashCode(',  'abbr': 'hashCode()',  'menu': 'int hashCode()', },
-      \  {'kind': 'f',    'word': 'length',        'menu': 'int'},
-      \  {'kind': 'm',    'word': 'notify(',  'abbr': 'notify()',  'menu': 'void Object.notify()', },
-      \  {'kind': 'm',    'word': 'notifyAll(',  'abbr': 'notifyAll()',  'menu': 'void Object.notifyAll()', },
-      \  {'kind': 'm',    'word': 'toString(',  'abbr': 'toString()',  'menu': 'String toString()', },
-      \  {'kind': 'm',    'word': 'wait(',  'abbr': 'wait()',  'menu': 'void Object.wait()', },
-      \  {'kind': 'm', 'dup': 1, 'word': 'wait(',  'abbr': 'wait()',  'menu': 'void Object.wait(long timeout)', },
-      \  {'kind': 'm', 'dup': 1, 'word': 'wait(',  'abbr': 'wait()',  'menu': 'void Object.wait(long timeout, int nanos)', }]
+let s:ARRAY_TYPE_INFO= {
+\   'tag': 'CLASSDEF',
+\   'name': '[',
+\   'ctors': [],
+\   'fields': [{'n': 'length', 'm': '1', 't': 'int'}],
+\   'methods':[
+\       {'n': 'clone',     'm': '1',         'r': 'Object',  'p': [],             'd': 'Object clone()'},
+\       {'n': 'equals',    'm': '1',         'r': 'boolean', 'p': ['Object'],     'd': 'boolean Object.equals(Object obj)'},
+\       {'n': 'getClass',  'm': '100010001', 'r': 'Class',   'p': [],             'd': 'Class Object.getClass()'},
+\       {'n': 'hashCode',  'm': '100000001', 'r': 'int',     'p': [],             'd': 'int Object.hashCode()'},
+\       {'n': 'notify',    'm': '100010001', 'r': 'void',    'p': [],             'd': 'void Object.notify()'},
+\       {'n': 'notifyAll', 'm': '100010001', 'r': 'void',    'p': [],             'd': 'void Object.notifyAll()'},
+\       {'n': 'toString',  'm': '1',         'r': 'String',  'p': [],             'd': 'String Object.toString()'},
+\       {'n': 'wait',      'm': '10001',     'r': 'void',    'p': [],             'd': 'void Object.wait()'},
+\       {'n': 'wait',      'm': '100010001', 'r': 'void',    'p': ['long'],       'd': 'void Object.wait(long timeout)'},
+\       {'n': 'wait',      'm': '10001',     'r': 'void',    'p': ['long','int'], 'd': 'void Object.wait(long timeout, int nanos)'},
+\    ],
+\}
 
-let s:ARRAY_TYPE_INFO = {'tag': 'CLASSDEF', 'name': '[', 'ctors': [],
-      \     'fields': [{'n': 'length', 'm': '1', 't': 'int'}],
-      \     'methods':[
-      \  {'n': 'clone',    'm': '1',    'r': 'Object',  'p': [],    'd': 'Object clone()'},
-      \  {'n': 'equals',    'm': '1',    'r': 'boolean',  'p': ['Object'],  'd': 'boolean Object.equals(Object obj)'},
-      \  {'n': 'getClass', 'm': '100010001',  'r': 'Class',  'p': [],    'd': 'Class Object.getClass()'},
-      \  {'n': 'hashCode', 'm': '100000001',  'r': 'int',  'p': [],    'd': 'int Object.hashCode()'},
-      \  {'n': 'notify',    'm': '100010001',  'r': 'void',  'p': [],    'd': 'void Object.notify()'},
-      \  {'n': 'notifyAll','m': '100010001',  'r': 'void',  'p': [],    'd': 'void Object.notifyAll()'},
-      \  {'n': 'toString', 'm': '1',     'r': 'String',  'p': [],    'd': 'String Object.toString()'},
-      \  {'n': 'wait',    'm': '10001',    'r': 'void',  'p': [],    'd': 'void Object.wait()'},
-      \  {'n': 'wait',    'm': '100010001',  'r': 'void',  'p': ['long'],    'd': 'void Object.wait(long timeout)'},
-      \  {'n': 'wait',    'm': '10001',    'r': 'void',  'p': ['long','int'],  'd': 'void Object.wait(long timeout, int nanos)'},
-      \    ]}
-
-let s:PRIMITIVE_TYPE_INFO = {'tag': 'CLASSDEF', 'name': '!', 'fields': [{'n': 'class','m': '1','t': 'Class'}]}
+let s:PRIMITIVE_TYPE_INFO= {
+\   'tag': 'CLASSDEF',
+\   'name': '!',
+\   'fields': [{'n': 'class','m': '1','t': 'Class'}],
+\}
 
 let s:JSP_BUILTIN_OBJECTS = {'session':  'javax.servlet.http.HttpSession',
       \  'request':      'javax.servlet.http.HttpServletRequest',
@@ -58,16 +66,17 @@ let s:JSP_BUILTIN_OBJECTS = {'session':  'javax.servlet.http.HttpSession',
       \  'page':         'javax.servlet.jsp.HttpJspPage', }
 
 
-let s:PRIMITIVE_TYPES  = ['boolean', 'byte', 'char', 'int', 'short', 'long', 'float', 'double']
-let s:KEYWORDS_MODS  = ['public', 'private', 'protected', 'static', 'final', 'synchronized', 'volatile', 'transient', 'native', 'strictfp', 'abstract']
-let s:KEYWORDS_TYPE  = ['class', 'interface', 'enum']
-let s:KEYWORDS    = s:PRIMITIVE_TYPES + s:KEYWORDS_MODS + s:KEYWORDS_TYPE + ['super', 'this', 'void'] + ['assert', 'break', 'case', 'catch', 'const', 'continue', 'default', 'do', 'else', 'extends', 'finally', 'for', 'goto', 'if', 'implements', 'import', 'instanceof', 'interface', 'new', 'package', 'return', 'switch', 'throw', 'throws', 'try', 'while', 'true', 'false', 'null']
+let s:PRIMITIVE_TYPES= ['boolean', 'byte', 'char', 'int', 'short', 'long', 'float', 'double']
+let s:KEYWORDS_MODS=   ['public', 'private', 'protected', 'static', 'final', 'synchronized', 'volatile', 'transient', 'native', 'strictfp', 'abstract']
+let s:KEYWORDS_TYPE=   ['class', 'interface', 'enum']
+let s:KEYWORDS=        s:PRIMITIVE_TYPES + s:KEYWORDS_MODS + s:KEYWORDS_TYPE + ['super', 'this', 'void'] + ['assert', 'break', 'case', 'catch', 'const', 'continue', 'default', 'do', 'else', 'extends', 'finally', 'for', 'goto', 'if', 'implements', 'import', 'instanceof', 'interface', 'new', 'package', 'return', 'switch', 'throw', 'throws', 'try', 'while', 'true', 'false', 'null']
 
-let s:PATH_SEP  = ':'
-let s:FILE_SEP  = '/'
 if has("win32") || has("win64") || has("win16") || has("dos32") || has("dos16")
   let s:PATH_SEP  = ';'
   let s:FILE_SEP  = '\'
+else
+  let s:PATH_SEP  = ':'
+  let s:FILE_SEP  = '/'
 endif
 
 let s:RE_BRACKETS  = '\%(\s*\[\s*\]\)'
