@@ -6,8 +6,7 @@
 " Copyright:  Copyright (C) 2006-2007 cheng fang. All rights reserved.
 " License:  Vim License  (see vim's :help license)
 
-" TODO: use own vital
-let s:V= vital#of('vital')
+let s:V= vital#of('javacomplete')
 let s:P= s:V.import('Process')
 let s:S= s:V.import('Data.String')
 unlet s:V
