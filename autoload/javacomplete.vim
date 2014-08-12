@@ -769,21 +769,26 @@ function! s:GetStatement()
     return strpart(input, match(input, '\C\%(import\|package\)'), col('.') - 1)
   endif
 
-  let [to_lnum, to_col]= [line('.'), col('.')]
+  let save_pos= getpos('.')
+  try
+    let [to_lnum, to_col]= [line('.'), col('.')]
 
-  while 1
-    let found_pos= searchpos('\C\%([{};]\|<%\|<%!\)', 'Wneb')
+    while 1
+      let found_pos= searchpos('\C\%([{};]\|<%\|<%!\)', 'Web')
 
-    if found_pos == [0, 0]
-      let [from_lnum, from_col]= [1, 1]
-      break
-    elseif !s:InCommentOrLiteral(found_pos[0], found_pos[1])
-      let [from_lnum, from_col]= [found_pos[0], found_pos[1] + 1]
-      break
-    endif
-  endwhile
+      if found_pos == [0, 0]
+        let [from_lnum, from_col]= [1, 1]
+        break
+      elseif !s:InCommentOrLiteral(found_pos[0], found_pos[1])
+        let [from_lnum, from_col]= [found_pos[0], found_pos[1] + 1]
+        break
+      endif
+    endwhile
 
-  return s:MergeLines(from_lnum, from_col, to_lnum, to_col)
+    return s:MergeLines(from_lnum, from_col, to_lnum, to_col)
+  finally
+    call setpos('.', save_pos)
+  endtry
 endfunction
 
 function! s:MergeLines(from_lnum, from_col, to_lnum, to_col)
