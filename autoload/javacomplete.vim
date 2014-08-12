@@ -115,13 +115,11 @@ let s:context_prototype= {
 \   'context_type': s:CONTEXT_OTHER,
 \   'precending':      '',
 \   'incomplete':   '',
-\   'errormsg': '',
 \}
 
 " script variables            {{{1
 let s:cache = {}  " FQN -> member list, e.g. {'java.lang.StringBuffer': classinfo, 'java.util': packageinfo, '/dir/TopLevelClass.java': compilationUnit}
 let s:files = {}  " source file path -> properties, e.g. {filekey: {'unit': compilationUnit, 'changedtick': tick, }}
-let s:history = {}  " 
 
 let s:source= {}
 
@@ -283,11 +281,6 @@ function! s:source.gather_candidates(context)
 
     return result
   endif
-
-  if strlen(a:context.errormsg) > 0
-    echoerr 'javacomplete error: ' . a:context.errormsg
-    let a:context.errormsg = ''
-  endif
 endfunction
 
 " This function is used for the 'omnifunc' option.    {{{1
@@ -295,11 +288,15 @@ function! javacomplete#Complete(findstart, base)
   " reset enviroment
   let b:javacomplete_context= deepcopy(get(b:, 'javacomplete_context', s:context_prototype))
 
-  if a:findstart
-    return s:source.get_complete_pos(b:javacomplete_context)
-  else
-    return s:source.gather_candidates(b:javacomplete_context)
-  endif
+  try
+    if a:findstart
+      return s:source.get_complete_pos(b:javacomplete_context)
+    else
+      return s:source.gather_candidates(b:javacomplete_context)
+    endif
+  catch /\C^javacomplete:/
+    echoerr v:exception
+  endtry
 endfunction
 
 " Precondition:  incomplete must be a word without '.'.
@@ -2466,7 +2463,7 @@ function! s:DoGetReflectionClassInfo(fqn)
         endif
       endfor
     else
-      let b:javacomplete_context.errormsg = res
+      throw printf('javacomplete: %s', res)
     endif
   endif
   return get(s:cache, a:fqn, {})
@@ -2648,7 +2645,7 @@ fu! s:DoGetInfoByReflection(class, option)
     endif
     unlet v
   else
-    let b:javacomplete_context.errormsg = res
+    throw printf('javacomplete: %s', res)
   endif
 
   return get(s:cache, a:class, {})
