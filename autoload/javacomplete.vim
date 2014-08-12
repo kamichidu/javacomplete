@@ -1057,11 +1057,10 @@ fu! s:SearchStaticImports(name, fullmatch)
     endif
   endfor
   if commalist != ''
-    let res = s:reflection.check_exists_and_read_class_info(commalist)
-    if res =~ "^{'"
-      let dict = eval(res)
-      for key in keys(dict)
-        let s:cache[key] = s:Sort(dict[key])
+    let res= s:reflection.check_exists_and_read_class_info(commalist)
+    if type(res) == type({})
+      for key in keys(res)
+        let s:cache[key] = s:Sort(res[key])
       endfor
     endif
   endif
@@ -1678,7 +1677,7 @@ fu! s:GetSourceDirs(filepath, ...)
     if packageName != ''
       let path = fnamemodify(substitute(filepath, packageName, '', 'g'), ':p:h')
       if index(dirs, path) < 0
-        let path = s:ConvertToJavaPath(path)
+        let path = javacomplete#util#convert_to_java_path(path)
 
         call add(dirs, path)
       endif
@@ -1733,97 +1732,10 @@ fu! javacomplete#GetClassPath()
 endfu
 
 " s:GetClassPath()              {{{2
-fu! s:GetClassPath()
-  let path = s:GetJavaCompleteClassPath() . javacomplete#GetClassPathSep()
-
-  if &ft == 'jsp'
-    let path .= s:GetClassPathOfJsp()
-  endif
-
-  if exists('b:classpath') && b:classpath !~ '^\s*$'
-    return path . b:classpath
-  endif
-
-  if exists('s:classpath')
-    return path . javacomplete#GetClassPath()
-  endif
-
-  if exists('g:java_classpath') && g:java_classpath !~ '^\s*$'
-    return path . g:java_classpath
-  endif
-
-  return path . $CLASSPATH
-endfu
-
-fu! s:GetJavaCompleteClassPath()
-  " remove *.class from wildignore if it exists, so that globpath doesn't ignore Reflection.class
-  " vim versions >= 702 can add the 1 flag to globpath which ignores '*.class" in wildingore
-  let has_class = 0
-  if &wildignore =~# "*.class"
-    set wildignore-=*.class
-    let has_class = 1
-  endif
-
-  let classfile = globpath(&rtp, 'autoload/Reflection.class')
-  if classfile == ''
-    " try to find source file and compile to $HOME
-    let srcfile = globpath(&rtp, 'autoload/Reflection.java')
-    let srcfile = s:ConvertToJavaPath(srcfile)
-    let classdir = s:ConvertToJavaPath(fnamemodify(srcfile, ':h'))
-
-    if srcfile != ''
-      let result = s:P.system(javacomplete#GetCompiler() . ' -d ' . shellescape(classdir) . ' ' . shellescape(srcfile))
-      let classfile = globpath(&rtp, 'autoload/Reflection.class')
-      if classfile == ''
-        echo srcfile . ' can not be compiled. Please check it'
-      endif
-    else
-      echo 'No Reflection.class found in $HOME/.vim or any autoload directory of the &rtp. And no Reflection.java found in any autoload directory of the &rtp to compile.'
-    endif
-  endif
-
-  " add *.class to wildignore if it existed before
-  if has_class == 1
-    set wildignore+=*.class
-  endif
-
-  return fnamemodify(classfile, ':p:h')
-endfu
-
-fu! s:GetClassPathOfJsp()
-  if exists('b:classpath_jsp')
-    return b:classpath_jsp
-  endif
-
-  let b:classpath_jsp = ''
-  let path = expand('%:p:h')
-  while 1
-    if isdirectory(path . '/WEB-INF' )
-      if isdirectory(path . '/WEB-INF/classes')
-        let b:classpath_jsp .= s:PATH_SEP . path . '/WEB-INF/classes'
-      endif
-      if isdirectory(path . '/WEB-INF/lib')
-        let libs = globpath(path . '/WEB-INF/lib', '*.jar')
-        if libs != ''
-          let b:classpath_jsp .= s:PATH_SEP . substitute(libs, "\n", s:PATH_SEP, 'g')
-        endif
-      endif
-      return b:classpath_jsp
-    endif
-
-    let prev = path
-    let path = fnamemodify(path, ":p:h:h")
-    if path == prev
-      break
-    endif
-  endwhile
-  return ''
-endfu
-
 " return only classpath which are directories
 fu! s:GetClassDirs()
   let dirs = []
-  for path in split(s:GetClassPath(), s:PATH_SEP)
+  for path in split(javacomplete#util#get_classpath(), s:PATH_SEP)
     if isdirectory(path)
       call add(dirs, fnamemodify(path, ':p:h'))
     endif
@@ -1854,22 +1766,6 @@ endfu
 fu! s:fnamecanonize(fname, mods)
   return fnamemodify(a:fname, a:mods . ':gs?[\\/]\+?/?')
 endfu
-
-" Convert a path into the form that java expects on this platform
-" Really only needed for running windows java from cygwin
-fu! s:ConvertToJavaPath(path)
-  if has('win32unix')
-    if ! exists('s:windows_java_under_unix')
-      let s:windows_java_under_unix = match(s:P.system("which " . shellescape(javacomplete#GetJVMLauncher())), "^/cygdrive") >= 0
-    endif
-    if s:windows_java_under_unix
-      return substitute(s:P.system("cygpath --windows " . shellescape(a:path)), "\n", "", "")
-    endif
-  else
-    return a:path
-  endif
-endfu
-
 
 " Similar with filter(), but returns a new list instead of operating in-place.
 " `item` has the value of the current item.
@@ -2274,15 +2170,14 @@ fu! s:DoGetTypeInfoForFQN(fqns, srcpath, ...)
     endif
   endfor
   if !empty(commalist)
-    let res = s:reflection.check_exists_and_read_class_info(commalist)
-    if res =~ "^{'"
-      let dict = eval(res)
-      for key in keys(dict)
+    let res= s:reflection.check_exists_and_read_class_info(commalist)
+    if type(res) == type({})
+      for key in keys(res)
         if !has_key(s:cache, key)
-          if type(dict[key]) == type({})
-            let s:cache[key] = s:Sort(dict[key])
-          elseif type(dict[key]) == type([])
-            let s:cache[key] = sort(dict[key])
+          if type(res[key]) == type({})
+            let s:cache[key] = s:Sort(res[key])
+          elseif type(res[key]) == type([])
+            let s:cache[key] = sort(res[key])
           endif
         endif
       endfor
@@ -2454,17 +2349,17 @@ endfu
 " See ClassInfoFactory.getClassInfo() in insenvim.
 function! s:DoGetReflectionClassInfo(fqn)
   if !has_key(s:cache, a:fqn)
-    let res = s:reflection.class_info(a:fqn)
-    if res =~ '^{'
-      let s:cache[a:fqn] = s:Sort(eval(res))
-    elseif res =~ '^['
-      for type in eval(res)
+    let res= s:reflection.class_info(a:fqn)
+    if type(res) == type({})
+      let s:cache[a:fqn]= s:Sort(res)
+    elseif type(res) =~ type([])
+      for type in res
         if get(type, 'name', '') != ''
-          let s:cache[type.name] = s:Sort(type)
+          let s:cache[type.name]= s:Sort(type)
         endif
       endfor
     else
-      throw printf('javacomplete: %s', res)
+      throw printf('javacomplete: %s', string(res))
     endif
   endif
   return get(s:cache, a:fqn, {})
@@ -2812,7 +2707,7 @@ fu! s:GetMembers(fqn, ...)
   let isClass = 0
 
   " check existance and read information given fqn
-  let v = s:reflection.check_exists_and_read_class_info(a:fqn)
+  let v = s:reflection.package_or_class_info(a:fqn)
   if type(v) == type([])
     let list = v
   elseif type(v) == type({}) && v != {}
