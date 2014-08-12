@@ -253,7 +253,7 @@ function! s:source.gather_candidates(context)
       call extend(result, eval('[' . s:DoGetMethodList(methods) . ']'))
 
     else
-      let result = s:CompleteAfterWord(a:context.incomplete)
+      let result = s:CompleteAfterWord(a:context)
     endif
 
     " then no filter needed
@@ -300,7 +300,10 @@ endfunction
 
 " Precondition:  incomplete must be a word without '.'.
 " return all the matched, variables, fields, methods, types, packages
-fu! s:CompleteAfterWord(incomplete)
+function! s:CompleteAfterWord(context)
+  let incomplete= a:context.incomplete
+  let context_type= a:context.context_type
+
   " packages in jar files
   if !exists('s:all_packages_in_jars_loaded')
     call s:DoGetInfoByReflection('-', '-P')
@@ -310,27 +313,27 @@ fu! s:CompleteAfterWord(incomplete)
   let pkgs = []
   let types = []
   for key in keys(s:cache)
-    if key =~# '^' . a:incomplete
+    if key =~# '^' . incomplete
       if type(s:cache[key]) == type('') || get(s:cache[key], 'tag', '') == 'PACKAGE'
         call add(pkgs, {'kind': 'P', 'word': key})
 
         " filter out type info
-      elseif b:javacomplete_context.context_type != s:CONTEXT_PACKAGE_DECL && b:javacomplete_context.context_type != s:CONTEXT_IMPORT && b:javacomplete_context.context_type != s:CONTEXT_IMPORT_STATIC
+      elseif context_type != s:CONTEXT_PACKAGE_DECL && context_type != s:CONTEXT_IMPORT && context_type != s:CONTEXT_IMPORT_STATIC
         call add(types, {'kind': 'C', 'word': key})
       endif
     endif
   endfor
 
-  let pkgs += s:DoGetPackageInfoInDirs(a:incomplete, b:javacomplete_context.context_type == s:CONTEXT_PACKAGE_DECL, 1)
+  let pkgs += s:DoGetPackageInfoInDirs(incomplete, context_type == s:CONTEXT_PACKAGE_DECL, 1)
 
 
   " add accessible types which name beginning with the incomplete in source files
   " TODO: remove the inaccessible
-  if b:javacomplete_context.context_type != s:CONTEXT_PACKAGE_DECL
+  if context_type != s:CONTEXT_PACKAGE_DECL
     " single type import
     for fqn in s:GetImports('imports_fqn')
       let name = fqn[strridx(fqn, ".")+1:]
-      if name =~ '^' . a:incomplete
+      if name =~ '^' . incomplete
         call add(types, {'kind': 'C', 'word': name})
       endif
     endfor
@@ -340,7 +343,7 @@ fu! s:CompleteAfterWord(incomplete)
     let col_old = col('.')
     call cursor(1, 1)
     while 1
-      let lnum = search('\<\C\(class\|interface\|enum\)[ \t\n\r]\+' . a:incomplete . '[a-zA-Z0-9_$]*[< \t\n\r]', 'W')
+      let lnum = search('\<\C\(class\|interface\|enum\)[ \t\n\r]\+' . incomplete . '[a-zA-Z0-9_$]*[< \t\n\r]', 'W')
       if lnum == 0
         break
       elseif s:InCommentOrLiteral(line('.'), col('.'))
@@ -363,7 +366,7 @@ fu! s:CompleteAfterWord(incomplete)
         silent! let text = matchstr(s:Prune(item.text, -1), '\s*' . s:RE_TYPE_DECL)
         if text != ''
           silent! let subs = split(substitute(text, '\s*' . s:RE_TYPE_DECL, '\1;\2;\3', ''), ';', 1)
-          if subs[2] =~# '^' . a:incomplete && (subs[0] =~ '\C\<public\>' || fnamemodify(bufname(item.bufnr), ':p:h') == expand('%:p:h'))
+          if subs[2] =~# '^' . incomplete && (subs[0] =~ '\C\<public\>' || fnamemodify(bufname(item.bufnr), ':p:h') == expand('%:p:h'))
             call add(types, {'kind': 'C', 'word': subs[2]})
           endif
         endif
@@ -375,8 +378,8 @@ fu! s:CompleteAfterWord(incomplete)
   let result = []
 
   " add variables and members in source files
-  if b:javacomplete_context.context_type == s:CONTEXT_AFTER_DOT
-    let matches = s:SearchForName(a:incomplete, 0, 0)
+  if context_type == s:CONTEXT_AFTER_DOT
+    let matches = s:SearchForName(incomplete, 0, 0)
     let result += sort(eval('[' . s:DoGetFieldList(matches[2]) . ']'))
     let result += sort(eval('[' . s:DoGetMethodList(matches[1]) . ']'))
   endif
@@ -384,8 +387,7 @@ fu! s:CompleteAfterWord(incomplete)
   let result += sort(types)
 
   return result
-endfu
-
+endfunction
 
 " Precondition:  expr must end with '.'
 " return members of the value of expression
