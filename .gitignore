@@ -1,4 +1,5 @@
 doc/tags
 autoload/Reflection.class
+.vim-flavor/
 .bundle/
 *.lock
