@@ -104,11 +104,11 @@ let s:RE_KEYWORDS  = '\<\%(' . join(s:KEYWORDS, '\|') . '\)\>'
 
 
 " local variables            {{{1
-" dotexpr - expression ends with '.'
-" incomplete - incomplete word: 1. dotexpr.method(|) 2. new classname(|) 3. dotexpr.ab|, 4. ja|, 5. method(|
+" precending - expression ends with '.'
+" incomplete - incomplete word: 1. precending.method(|) 2. new classname(|) 3. precending.ab|, 4. ja|, 5. method(|
 let s:context_prototype= {
 \   'context_type': s:CONTEXT_OTHER,
-\   'dotexpr':      '',
+\   'precending':      '',
 \   'incomplete':   '',
 \   'errormsg': '',
 \}
@@ -145,35 +145,35 @@ function! s:source.get_complete_pos(context)
         let statement = substitute(statement, '\.\s\+', '.', 'g')
         if statement =~ '^\s*import\s\+'
           let a:context.context_type= (statement =~# '\<static\s\+') ? s:CONTEXT_IMPORT_STATIC : s:CONTEXT_IMPORT
-          let a:context.dotexpr=      substitute(statement, '^\s*import\s\+\(static\s\+\)\?', '', '')
+          let a:context.precending=   substitute(statement, '^\s*import\s\+\(static\s\+\)\?', '', '')
         else
           let a:context.context_type= s:CONTEXT_PACKAGE_DECL
-          let a:context.dotexpr=      substitute(statement, '\s*package\s\+', '', '')
+          let a:context.precending=   substitute(statement, '\s*package\s\+', '', '')
         endif
 
         " String literal
       elseif statement =~  '"\s*\.\s*$'
-        let a:context.dotexpr= substitute(statement, '\s*\.\s*$', '\.', '')
+        let a:context.precending= substitute(statement, '\s*\.\s*$', '\.', '')
         return start - strlen(a:context.incomplete)
 
       else
         " type declaration    NOTE: not supported generic yet.
         silent! let idx_type = matchend(statement, '^\s*' . s:RE_TYPE_DECL)
         if idx_type != -1
-          let a:context.dotexpr= strpart(statement, idx_type)
+          let a:context.precending= strpart(statement, idx_type)
           " return if not after extends or implements
-          if a:context.dotexpr !~ '^\(extends\|implements\)\s\+'
+          if a:context.precending !~ '^\(extends\|implements\)\s\+'
             return -1
           endif
           let a:context.context_type = s:CONTEXT_NEED_TYPE
         endif
 
-        let a:context.dotexpr = s:ExtractCleanExpr(statement)
+        let a:context.precending = s:ExtractCleanExpr(statement)
       endif
 
       " all cases: " java.ut|" or " java.util.|" or "ja|"
-      let a:context.incomplete = strpart(a:context.dotexpr, strridx(a:context.dotexpr, '.')+1)
-      let a:context.dotexpr = strpart(a:context.dotexpr, 0, strridx(a:context.dotexpr, '.')+1)
+      let a:context.incomplete = strpart(a:context.precending, strridx(a:context.precending, '.')+1)
+      let a:context.precending = strpart(a:context.precending, 0, strridx(a:context.precending, '.')+1)
       return start - strlen(a:context.incomplete)
 
 
@@ -193,8 +193,8 @@ function! s:source.get_complete_pos(context)
         let str = substitute(str, '^new\s\+', '', '')
         if !s:IsKeyword(str)
           let a:context.incomplete = '+'
-          let a:context.dotexpr = str
-          return start - len(a:context.dotexpr)
+          let a:context.precending = str
+          return start - len(a:context.precending)
         endif
 
         " normal method invocations
@@ -205,9 +205,9 @@ function! s:source.get_complete_pos(context)
           let statement = substitute(statement, '^\s*', '', '')
           " treat "this" or "super" as a type name.
           if statement == 'this' || statement == 'super' 
-            let a:context.dotexpr = statement
+            let a:context.precending = statement
             let a:context.incomplete = '+'
-            return start - len(a:context.dotexpr)
+            return start - len(a:context.precending)
 
           elseif !s:IsKeyword(statement)
             let a:context.incomplete = statement
@@ -216,7 +216,7 @@ function! s:source.get_complete_pos(context)
 
           " case: "expr.method(|)"
         elseif statement[pos-1] == '.' && !s:IsKeyword(strpart(statement, pos))
-          let a:context.dotexpr = s:ExtractCleanExpr(strpart(statement, 0, pos))
+          let a:context.precending = s:ExtractCleanExpr(strpart(statement, 0, pos))
           let a:context.incomplete = strpart(statement, pos)
           return start - strlen(a:context.incomplete)
         endif
@@ -227,22 +227,22 @@ function! s:source.get_complete_pos(context)
 endfunction
 
 function! s:source.gather_candidates(context)
-  if a:context.dotexpr =~ '^\s*$' && a:context.incomplete =~ '^\s*$'
+  if a:context.precending =~ '^\s*$' && a:context.incomplete =~ '^\s*$'
     return []
   endif
 
 
   let result = []
-  if a:context.dotexpr !~ '^\s*$'
+  if a:context.precending !~ '^\s*$'
     if a:context.context_type == s:CONTEXT_AFTER_DOT
-      silent! let result = s:CompleteAfterDot(a:context.dotexpr)
+      silent! let result = s:CompleteAfterDot(a:context.precending)
     elseif a:context.context_type == s:CONTEXT_IMPORT || a:context.context_type == s:CONTEXT_IMPORT_STATIC || a:context.context_type == s:CONTEXT_PACKAGE_DECL || a:context.context_type == s:CONTEXT_NEED_TYPE
-      silent! let result = s:GetMembers(a:context.dotexpr[:-2])
+      silent! let result = s:GetMembers(a:context.precending[:-2])
     elseif a:context.context_type == s:CONTEXT_METHOD_PARAM
       if a:context.incomplete == '+'
-        silent! let result = s:GetConstructorList(a:context.dotexpr)
+        silent! let result = s:GetConstructorList(a:context.precending)
       else
-        silent! let result = s:CompleteAfterDot(a:context.dotexpr)
+        silent! let result = s:CompleteAfterDot(a:context.precending)
       endif
     endif
 
