@@ -118,16 +118,12 @@ let s:cache = {}  " FQN -> member list, e.g. {'java.lang.StringBuffer': classinf
 let s:files = {}  " source file path -> properties, e.g. {filekey: {'unit': compilationUnit, 'changedtick': tick, }}
 let s:history = {}  " 
 
+let s:source= {}
 
-" This function is used for the 'omnifunc' option.    {{{1
-function! javacomplete#Complete(findstart, base)
-  if a:findstart
+function! s:source.get_complete_pos(context)
     let s:et_whole = reltime()
     let start = col('.') - 1
     let s:log = []
-
-    " reset enviroment
-    let b:javacomplete_context= deepcopy(s:context_prototype)
 
     let statement = s:GetStatement()
     call s:WatchVariant('statement: "' . statement . '"')
@@ -141,50 +137,50 @@ function! javacomplete#Complete(findstart, base)
         return -1
       endif
 
-      let b:javacomplete_context.context_type= s:CONTEXT_AFTER_DOT
+      let a:context.context_type= s:CONTEXT_AFTER_DOT
 
       " import or package declaration
       if statement =~# '^\s*\(import\|package\)\s\+'
         let statement = substitute(statement, '\s\+\.', '.', 'g')
         let statement = substitute(statement, '\.\s\+', '.', 'g')
         if statement =~ '^\s*import\s\+'
-          let b:javacomplete_context.context_type= (statement =~# '\<static\s\+') ? s:CONTEXT_IMPORT_STATIC : s:CONTEXT_IMPORT
-          let b:javacomplete_context.dotexpr=      substitute(statement, '^\s*import\s\+\(static\s\+\)\?', '', '')
+          let a:context.context_type= (statement =~# '\<static\s\+') ? s:CONTEXT_IMPORT_STATIC : s:CONTEXT_IMPORT
+          let a:context.dotexpr=      substitute(statement, '^\s*import\s\+\(static\s\+\)\?', '', '')
         else
-          let b:javacomplete_context.context_type= s:CONTEXT_PACKAGE_DECL
-          let b:javacomplete_context.dotexpr=      substitute(statement, '\s*package\s\+', '', '')
+          let a:context.context_type= s:CONTEXT_PACKAGE_DECL
+          let a:context.dotexpr=      substitute(statement, '\s*package\s\+', '', '')
         endif
 
         " String literal
       elseif statement =~  '"\s*\.\s*$'
-        let b:javacomplete_context.dotexpr= substitute(statement, '\s*\.\s*$', '\.', '')
-        return start - strlen(b:javacomplete_context.incomplete)
+        let a:context.dotexpr= substitute(statement, '\s*\.\s*$', '\.', '')
+        return start - strlen(a:context.incomplete)
 
       else
         " type declaration    NOTE: not supported generic yet.
         silent! let idx_type = matchend(statement, '^\s*' . s:RE_TYPE_DECL)
         if idx_type != -1
-          let b:javacomplete_context.dotexpr= strpart(statement, idx_type)
+          let a:context.dotexpr= strpart(statement, idx_type)
           " return if not after extends or implements
-          if b:javacomplete_context.dotexpr !~ '^\(extends\|implements\)\s\+'
+          if a:context.dotexpr !~ '^\(extends\|implements\)\s\+'
             return -1
           endif
-          let b:javacomplete_context.context_type = s:CONTEXT_NEED_TYPE
+          let a:context.context_type = s:CONTEXT_NEED_TYPE
         endif
 
-        let b:javacomplete_context.dotexpr = s:ExtractCleanExpr(statement)
+        let a:context.dotexpr = s:ExtractCleanExpr(statement)
       endif
 
       " all cases: " java.ut|" or " java.util.|" or "ja|"
-      let b:javacomplete_context.incomplete = strpart(b:javacomplete_context.dotexpr, strridx(b:javacomplete_context.dotexpr, '.')+1)
-      let b:javacomplete_context.dotexpr = strpart(b:javacomplete_context.dotexpr, 0, strridx(b:javacomplete_context.dotexpr, '.')+1)
-      return start - strlen(b:javacomplete_context.incomplete)
+      let a:context.incomplete = strpart(a:context.dotexpr, strridx(a:context.dotexpr, '.')+1)
+      let a:context.dotexpr = strpart(a:context.dotexpr, 0, strridx(a:context.dotexpr, '.')+1)
+      return start - strlen(a:context.incomplete)
 
 
       " method parameters, treat methodname or 'new' as an incomplete word
     elseif statement =~ '(\s*$'
       " TODO: Need to exclude method declaration?
-      let b:javacomplete_context.context_type = s:CONTEXT_METHOD_PARAM
+      let a:context.context_type = s:CONTEXT_METHOD_PARAM
       let pos = strridx(statement, '(')
       let s:padding = strpart(statement, pos+1)
       let start = start - (len(statement) - pos)
@@ -196,9 +192,9 @@ function! javacomplete#Complete(findstart, base)
       if str != ''
         let str = substitute(str, '^new\s\+', '', '')
         if !s:IsKeyword(str)
-          let b:javacomplete_context.incomplete = '+'
-          let b:javacomplete_context.dotexpr = str
-          return start - len(b:javacomplete_context.dotexpr)
+          let a:context.incomplete = '+'
+          let a:context.dotexpr = str
+          return start - len(a:context.dotexpr)
         endif
 
         " normal method invocations
@@ -209,69 +205,67 @@ function! javacomplete#Complete(findstart, base)
           let statement = substitute(statement, '^\s*', '', '')
           " treat "this" or "super" as a type name.
           if statement == 'this' || statement == 'super' 
-            let b:javacomplete_context.dotexpr = statement
-            let b:javacomplete_context.incomplete = '+'
-            return start - len(b:javacomplete_context.dotexpr)
+            let a:context.dotexpr = statement
+            let a:context.incomplete = '+'
+            return start - len(a:context.dotexpr)
 
           elseif !s:IsKeyword(statement)
-            let b:javacomplete_context.incomplete = statement
-            return start - strlen(b:javacomplete_context.incomplete)
+            let a:context.incomplete = statement
+            return start - strlen(a:context.incomplete)
           endif
 
           " case: "expr.method(|)"
         elseif statement[pos-1] == '.' && !s:IsKeyword(strpart(statement, pos))
-          let b:javacomplete_context.dotexpr = s:ExtractCleanExpr(strpart(statement, 0, pos))
-          let b:javacomplete_context.incomplete = strpart(statement, pos)
-          return start - strlen(b:javacomplete_context.incomplete)
+          let a:context.dotexpr = s:ExtractCleanExpr(strpart(statement, 0, pos))
+          let a:context.incomplete = strpart(statement, pos)
+          return start - strlen(a:context.incomplete)
         endif
       endif
     endif
 
     return -1
-  endif
+endfunction
 
-
-  " Return list of matches.
-
-  if b:javacomplete_context.dotexpr =~ '^\s*$' && b:javacomplete_context.incomplete =~ '^\s*$'
+function! s:source.gather_candidates(context)
+  if a:context.dotexpr =~ '^\s*$' && a:context.incomplete =~ '^\s*$'
     return []
   endif
 
 
   let result = []
-  if b:javacomplete_context.dotexpr !~ '^\s*$'
-    if b:javacomplete_context.context_type == s:CONTEXT_AFTER_DOT
-      silent! let result = s:CompleteAfterDot(b:javacomplete_context.dotexpr)
-    elseif b:javacomplete_context.context_type == s:CONTEXT_IMPORT || b:javacomplete_context.context_type == s:CONTEXT_IMPORT_STATIC || b:javacomplete_context.context_type == s:CONTEXT_PACKAGE_DECL || b:javacomplete_context.context_type == s:CONTEXT_NEED_TYPE
-      silent! let result = s:GetMembers(b:javacomplete_context.dotexpr[:-2])
-    elseif b:javacomplete_context.context_type == s:CONTEXT_METHOD_PARAM
-      if b:javacomplete_context.incomplete == '+'
-        silent! let result = s:GetConstructorList(b:javacomplete_context.dotexpr)
+  if a:context.dotexpr !~ '^\s*$'
+    if a:context.context_type == s:CONTEXT_AFTER_DOT
+      silent! let result = s:CompleteAfterDot(a:context.dotexpr)
+    elseif a:context.context_type == s:CONTEXT_IMPORT || a:context.context_type == s:CONTEXT_IMPORT_STATIC || a:context.context_type == s:CONTEXT_PACKAGE_DECL || a:context.context_type == s:CONTEXT_NEED_TYPE
+      silent! let result = s:GetMembers(a:context.dotexpr[:-2])
+    elseif a:context.context_type == s:CONTEXT_METHOD_PARAM
+      if a:context.incomplete == '+'
+        silent! let result = s:GetConstructorList(a:context.dotexpr)
       else
-        silent! let result = s:CompleteAfterDot(b:javacomplete_context.dotexpr)
+        silent! let result = s:CompleteAfterDot(a:context.dotexpr)
       endif
     endif
 
     " only incomplete word
-  elseif b:javacomplete_context.incomplete !~ '^\s*$'
+  elseif a:context.incomplete !~ '^\s*$'
     " only need methods
-    if b:javacomplete_context.context_type == s:CONTEXT_METHOD_PARAM
-      let methods = s:SearchForName(b:javacomplete_context.incomplete, 0, 1)[1]
+    if a:context.context_type == s:CONTEXT_METHOD_PARAM
+      let methods = s:SearchForName(a:context.incomplete, 0, 1)[1]
       call extend(result, eval('[' . s:DoGetMethodList(methods) . ']'))
 
     else
-      let result = s:CompleteAfterWord(b:javacomplete_context.incomplete)
+      let result = s:CompleteAfterWord(a:context.incomplete)
     endif
 
     " then no filter needed
-    let b:javacomplete_context.incomplete = ''
+    let a:context.incomplete = ''
   endif
 
 
   if len(result) > 0
     " filter according to b:incomplete
-    if len(b:javacomplete_context.incomplete) > 0 && b:javacomplete_context.incomplete != '+'
-      let result = filter(result, "type(v:val) == type('') ? v:val =~ '^" . b:javacomplete_context.incomplete . "' : v:val['word'] =~ '^" . b:javacomplete_context.incomplete . "'")
+    if len(a:context.incomplete) > 0 && a:context.incomplete != '+'
+      let result = filter(result, "type(v:val) == type('') ? v:val =~ '^" . a:context.incomplete . "' : v:val['word'] =~ '^" . a:context.incomplete . "'")
     endif
 
     if exists('s:padding') && !empty(s:padding)
@@ -289,9 +283,21 @@ function! javacomplete#Complete(findstart, base)
     return result
   endif
 
-  if strlen(b:javacomplete_context.errormsg) > 0
-    echoerr 'javacomplete error: ' . b:javacomplete_context.errormsg
-    let b:javacomplete_context.errormsg = ''
+  if strlen(a:context.errormsg) > 0
+    echoerr 'javacomplete error: ' . a:context.errormsg
+    let a:context.errormsg = ''
+  endif
+endfunction
+
+" This function is used for the 'omnifunc' option.    {{{1
+function! javacomplete#Complete(findstart, base)
+  " reset enviroment
+  let b:javacomplete_context= deepcopy(get(b:, 'javacomplete_context', s:context_prototype))
+
+  if a:findstart
+    return s:source.get_complete_pos(b:javacomplete_context)
+  else
+    return s:source.gather_candidates(b:javacomplete_context)
   endif
 endfunction
 
