@@ -9,6 +9,7 @@
 " TODO: use own vital
 let s:V= vital#of('vital')
 let s:P= s:V.import('Process')
+let s:S= s:V.import('Data.String')
 unlet s:V
 
 " constants              {{{1
@@ -789,32 +790,40 @@ function! s:GetStatement()
   return s:MergeLines(from_lnum, from_col, to_lnum, to_col)
 endfunction
 
-fu! s:MergeLines(lnum, col, lnum_old, col_old)
-  let lnum = a:lnum
-  let col = a:col
+function! s:MergeLines(from_lnum, from_col, to_lnum, to_col)
+  let from= [a:from_lnum, a:from_col]
+  let to= [a:to_lnum, a:to_col]
 
-  let str = ''
-  if lnum < a:lnum_old
-    let str = s:Prune(strpart(getline(lnum), a:col-1))
-    let lnum += 1
-    while lnum < a:lnum_old
-      let str  .= s:Prune(getline(lnum))
-      let lnum += 1
-    endwhile
-    let col = 1
+  if (from[0] > to[0]) || (from[0] == to[0] && from[1] > to[1])
+    throw printf('javacomplete: illegal range specified, cannot merge [%d, %d] to [%d, %d].', from[0], from[1], to[0], to[1])
   endif
-  let lastline = strpart(getline(a:lnum_old), col-1, a:col_old-col)
-  let str .= s:Prune(lastline, col)
-  let str = s:RemoveBlockComments(str)
+
+  let buf= []
+  if from[0] < to[0]
+    let buf+= [s:Prune(strpart(getline(from[0]), from[1] - 1))]
+    let from[0]+= 1
+
+    while from[0] < to[0]
+      let buf+= [s:Prune(getline(from[0]))]
+      let from[0]+= 1
+    endwhile
+
+    let from[1]= 1
+  endif
+
+  let lastline= strpart(getline(to[0]), from[1] - 1, to[1] - from[1])
+  let buf+= [s:Prune(lastline, from[1])]
+
+  let str = s:RemoveBlockComments(join(buf, ''))
   " generic in JAVA 5+
   while match(str, s:RE_TYPE_ARGUMENTS) != -1
-    let str = substitute(str, '\(' . s:RE_TYPE_ARGUMENTS . '\)', '\=repeat(" ", len(submatch(1)))', 'g')
+    let str= substitute(str, '\C\(' . s:RE_TYPE_ARGUMENTS . '\)', '\=repeat(" ", len(submatch(1)))', 'g')
   endwhile
-  let str = substitute(str, '\s\s\+', ' ', 'g')
-  let str = substitute(str, '\([.()]\)[ \t]\+', '\1', 'g')
-  let str = substitute(str, '[ \t]\+\([.()]\)', '\1', 'g')
-  return s:Trim(str) . matchstr(lastline, '\s*$')
-endfu
+
+  let str= substitute(str, '\s\+', ' ', 'g')
+
+  return s:S.trim(str) . matchstr(lastline, '\s*$')
+endfunction
 
 " Extract a clean expr, removing some non-necessary characters. 
 fu! s:ExtractCleanExpr(expr)
@@ -1322,7 +1331,7 @@ endfu
 
 " Parser.GetType() in insenvim
 function! s:GetDeclaredClassName(var)
-  let var = s:Trim(a:var)
+  let var = s:S.trim(a:var)
   if var =~# '^\(this\|super\)$'
     return var
   endif
@@ -1948,11 +1957,6 @@ fu! s:RemoveBlockComments(str, ...)
     let ie = match(result, '\*\/')
   endwhile
   return result
-endfu
-
-fu! s:Trim(str)
-  let str = substitute(a:str, '^\s*', '', '')
-  return substitute(str, '\s*$', '', '')
 endfu
 
 fu! s:SplitAt(str, index)
