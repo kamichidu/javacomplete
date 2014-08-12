@@ -766,31 +766,27 @@ endfu
 " Return: statement before cursor
 " Note: It's the base for parsing. And It's OK for most cases.
 function! s:GetStatement()
-  if getline('.') =~ '^\s*\(import\|package\)\s\+'
-    return strpart(getline('.'), match(getline('.'), '\(import\|package\)'), col('.')-1)
+  let input= getline('.')
+
+  if input =~ '\C^\s*\%(import\|package\)\s\+'
+    return strpart(input, match(input, '\C\%(import\|package\)'), col('.') - 1)
   endif
 
-  let lnum_old = line('.')
-  let col_old = col('.')
+  let [to_lnum, to_col]= [line('.'), col('.')]
 
   while 1
-    if search('[{};]\|<%\|<%!', 'bW') == 0
-      let lnum = 1
-      let col  = 1
-    else
-      if s:InCommentOrLiteral(line('.'), col('.'))
-        continue
-      endif
+    let found_pos= searchpos('\C\%([{};]\|<%\|<%!\)', 'Wneb')
 
-      normal w
-      let lnum = line('.')
-      let col = col('.')
+    if found_pos == [0, 0]
+      let [from_lnum, from_col]= [1, 1]
+      break
+    elseif !s:InCommentOrLiteral(found_pos[0], found_pos[1])
+      let [from_lnum, from_col]= [found_pos[0], found_pos[1] + 1]
+      break
     endif
-    break
   endwhile
 
-  silent call cursor(lnum_old, col_old)
-  return s:MergeLines(lnum, col, lnum_old, col_old)
+  return s:MergeLines(from_lnum, from_col, to_lnum, to_col)
 endfunction
 
 fu! s:MergeLines(lnum, col, lnum_old, col_old)
