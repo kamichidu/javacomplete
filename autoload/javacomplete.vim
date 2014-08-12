@@ -6,6 +6,10 @@
 " Copyright:  Copyright (C) 2006-2007 cheng fang. All rights reserved.
 " License:  Vim License  (see vim's :help license)
 
+" TODO: use own vital
+let s:V= vital#of('vital')
+let s:P= s:V.import('Process')
+unlet s:V
 
 " constants              {{{1
 " input context type
@@ -1756,7 +1760,7 @@ fu! s:GetJavaCompleteClassPath()
     let classdir = s:ConvertToJavaPath(fnamemodify(srcfile, ':h'))
 
     if srcfile != ''
-      let result = s:System(javacomplete#GetCompiler() . ' -d ' . shellescape(classdir) . ' ' . shellescape(srcfile), "GetJavaCompleteClassPath")
+      let result = s:P.system(javacomplete#GetCompiler() . ' -d ' . shellescape(classdir) . ' ' . shellescape(srcfile))
       let classfile = globpath(&rtp, 'autoload/Reflection.class')
       if classfile == ''
         echo srcfile . ' can not be compiled. Please check it'
@@ -1844,10 +1848,10 @@ endfu
 fu! s:ConvertToJavaPath(path)
   if has('win32unix')
     if ! exists('s:windows_java_under_unix')
-      let s:windows_java_under_unix = match(s:System("which " . shellescape(javacomplete#GetJVMLauncher()), "ConvertToJavaPath"), "^/cygdrive") >= 0
+      let s:windows_java_under_unix = match(s:P.system("which " . shellescape(javacomplete#GetJVMLauncher())), "^/cygdrive") >= 0
     endif
     if s:windows_java_under_unix
-      return substitute(s:System("cygpath --windows " . shellescape(a:path), "ConvertToJavaPath"), "\n", "", "")
+      return substitute(s:P.system("cygpath --windows " . shellescape(a:path)), "\n", "", "")
     endif
   else
     return a:path
@@ -2104,12 +2108,6 @@ if has("autocmd")
   autocmd FileType java call s:SetCurrentFileKey()
 endif
 
-fu! s:System(cmd, caller)
-  let t = reltime()
-  let res = system(a:cmd)
-  return res
-endfu
-
 " functions to get information            {{{1
 " utilities                {{{2
 fu! s:MemberCompare(m1, m2)
@@ -2135,7 +2133,7 @@ fu! s:RunReflection(option, args, log)
   endif
 
   let cmd = javacomplete#GetJVMLauncher() . classpath . ' Reflection ' . a:option . ' "' . a:args . '"'
-  return s:System(cmd, a:log)
+  return s:P.system(cmd)
 endfu
 " class information              {{{2
 
@@ -2942,7 +2940,7 @@ fu! s:GetAndroidClassPath(path)
   if buildfile == ''
     return ""
   endif
-  let msg = system('ant -q -f "' . buildfile . '" -Dbasedir="' . s:GetAndroidProjectRoot(a:path) . '" listclasspath')
+  let msg = s:P.system('ant -q -f "' . buildfile . '" -Dbasedir="' . s:GetAndroidProjectRoot(a:path) . '" listclasspath')
   let classpath = substitute(msg, '.\{-}CLASSPATH{\([^}]*\)}.*', '\=submatch(1)', "")
   let s:android_project_classpath_cache[s:GetAndroidProjectRoot(a:path)] = classpath
 
