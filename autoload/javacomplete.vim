@@ -263,25 +263,23 @@ function! s:source.gather_candidates(context)
   endif
 
 
-  if len(result) > 0
-    " filter according to b:incomplete
-    if len(a:context.incomplete) > 0 && a:context.incomplete != '+'
-      let result = filter(result, "type(v:val) == type('') ? v:val =~ '^" . a:context.incomplete . "' : v:val['word'] =~ '^" . a:context.incomplete . "'")
-    endif
-
-    if exists('s:padding') && !empty(s:padding)
-      for item in result
-        if type(item) == type("")
-          let item .= s:padding
-        else
-          let item.word .= s:padding
-        endif
-      endfor
-      unlet s:padding
-    endif
-
-    return result
+  " filter according to b:incomplete
+  if len(a:context.incomplete) > 0 && a:context.incomplete != '+'
+    let result = filter(result, "type(v:val) == type('') ? v:val =~ '^" . a:context.incomplete . "' : v:val['word'] =~ '^" . a:context.incomplete . "'")
   endif
+
+  if exists('s:padding') && !empty(s:padding)
+    for item in result
+      if type(item) == type("")
+        let item .= s:padding
+      else
+        let item.word .= s:padding
+      endif
+    endfor
+    unlet s:padding
+  endif
+
+  return result
 endfunction
 
 " This function is used for the 'omnifunc' option.    {{{1
