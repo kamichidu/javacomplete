@@ -5,13 +5,14 @@ let s:V= vital#of('javacomplete')
 let s:P= s:V.import('Process')
 unlet s:V
 
-let s:cache= {}
+let s:cache= {}  " FQN -> member list, e.g. {'java.lang.StringBuffer': classinfo, 'java.util': packageinfo, '/dir/TopLevelClass.java': compilationUnit}
 
 let s:reflection= {
 \   'is_jdk11': 0,
 \}
 
 function! s:reflection.packages()
+    return eval(self.run_reflection('-P', '-'))
     " s:DoGetInfoByReflection('-', '-P')
 endfunction
 
