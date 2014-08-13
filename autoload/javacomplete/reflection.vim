@@ -79,8 +79,19 @@ function! s:reflection.packages()
         let s:all_packages_in_jars_loaded = 1
     endif
 
-    return filter(keys(s:cache)), 's:cache[v:val].tag ==# "PACKAGE"')
+    return filter(keys(s:cache), 's:cache[v:val].tag ==# "PACKAGE"')
     " s:DoGetInfoByReflection('-', '-P')
+endfunction
+
+function! s:reflection.package_info(package)
+    if !exists('s:all_packages_in_jars_loaded')
+        " {'package name': {'tag': 'PACKAGE', 'classes': ['simple class name', ...]}}
+        let packages= eval(self.run_reflection('-P', '-'))
+        call extend(s:cache, packages)
+        let s:all_packages_in_jars_loaded = 1
+    endif
+
+    return deepcopy(get(s:cache, a:package, {}))
 endfunction
 
 function! s:reflection.classes()
@@ -96,7 +107,13 @@ function! s:reflection.check_exists_and_read_class_info(classes)
 endfunction
 
 function! s:reflection.class_info(class)
-    return eval(self.run_reflection('-C', a:class))
+    let output= self.run_reflection('-C', a:class)
+    try
+        let expr= eval(output)
+        return (type(expr) == type({})) ? expr : {}
+    catch
+        return {}
+    endtry
     " s:RunReflection('-C', a:fqn, 's:DoGetReflectionClassInfo')
       " let ti = s:GetClassInfoFromSource(fqn[strridx(fqn, '.')+1:], files[fqn])
 endfunction

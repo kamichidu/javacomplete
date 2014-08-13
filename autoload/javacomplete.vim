@@ -240,7 +240,7 @@ function! s:source.gather_candidates(context)
     \   a:context.context_type ==# s:CONTEXT_IMPORT_STATIC ||
     \   a:context.context_type ==# s:CONTEXT_PACKAGE_DECL ||
     \   a:context.context_type ==# s:CONTEXT_NEED_TYPE
-      let result= s:GetMembers(a:context.precending[ : -2])
+      let result= s:GetMembers(a:context, a:context.precending[ : -2])
     elseif a:context.context_type ==# s:CONTEXT_METHOD_PARAM
       if a:context.incomplete ==# '+'
         let result= s:GetConstructorList(a:context.precending)
@@ -501,7 +501,7 @@ function! s:CompleteAfterDot(expr)
           " 5)
           if empty(ti)
             unlet ti
-            let ti = s:GetMembers(ident)  " s:DoGetPackegInfo(ident)
+            let ti = s:GetMembers(b:javacomplete_context, ident)  " s:DoGetPackegInfo(ident)
             let itemkind = 20
           endif
         endif
@@ -579,7 +579,7 @@ function! s:CompleteAfterDot(expr)
           if idx >= 0
             if ti[idx].kind == 'P'
               unlet ti
-              let ti = s:GetMembers(qn)
+              let ti = s:GetMembers(b:javacomplete_context, qn)
               let ii += 1
               continue
             elseif ti[idx].kind == 'C'
@@ -658,7 +658,7 @@ function! s:CompleteAfterDot(expr)
         endif
       elseif get(ti, 'tag', '') == 'PACKAGE'
         " TODO: ti -> members, in addition to packages in dirs
-        return s:GetMembers( substitute(join(items, '.'), '\s', '', 'g') )
+        return s:GetMembers(b:javacomplete_context, substitute(join(items, '.'), '\s', '', 'g') )
       endif
     elseif type(ti) == type([])
       return ti
@@ -2682,39 +2682,41 @@ endfunction
 
 " Name can be a (simple or qualified) package name, or a (simple or qualified)
 " type name.
-fu! s:GetMembers(fqn, ...)
-  let list = []
-  let isClass = 0
+function! s:GetMembers(context, fqn, ...)
+  let list= []
+  let is_class= 0
 
   " check existance and read information given fqn
-  let v = s:reflection.package_or_class_info(a:fqn)
-  if type(v) == type([])
-    let list = v
-  elseif type(v) == type({}) && v != {}
-    if get(v, 'tag', '') == 'PACKAGE'
-      if b:javacomplete_context.context_type == s:CONTEXT_IMPORT_STATIC || b:javacomplete_context.context_type == s:CONTEXT_IMPORT
-        call add(list, {'kind': 'P', 'word': '*;'})
-      endif
-      if b:javacomplete_context.context_type != s:CONTEXT_PACKAGE_DECL
-        for c in sort(get(v, 'classes', []))
-          call add(list, {'kind': 'C', 'word': c})
-        endfor
-      endif
-      for p in sort(get(v, 'subpackages', []))
-        call add(list, {'kind': 'P', 'word': p})
-      endfor
-    else  " elseif get(v, 'tag', '') == 'CLASSDEF'
-      let isClass = 1
-      let list += s:DoGetMemberList(v, b:javacomplete_context.context_type == s:CONTEXT_IMPORT || b:javacomplete_context.context_type == s:CONTEXT_NEED_TYPE ? 13 : b:javacomplete_context.context_type == s:CONTEXT_IMPORT_STATIC ? 12 : 11)
+  let package= s:reflection.package_info(a:fqn)
+  if !empty(package)
+    if a:context.context_type == s:CONTEXT_IMPORT_STATIC || a:context.context_type == s:CONTEXT_IMPORT
+      let list+= [{'kind': 'P', 'word': '*;'}]
     endif
+    if a:context.context_type !=# s:CONTEXT_PACKAGE_DECL
+      for class in sort(get(package, 'classes', []))
+        let list+= [{'kind': 'C', 'word': class}]
+      endfor
+      if exists('class')
+        unlet class
+      endif
+    endif
+    for subpkg in sort(get(package, 'subpackages', []))
+      let list+= [{'kind': 'P', 'word': subpkg}]
+    endfor
   endif
 
-  if !isClass
-    let list += s:DoGetPackageInfoInDirs(a:fqn, b:javacomplete_context.context_type == s:CONTEXT_PACKAGE_DECL)
+  let class= s:reflection.class_info(a:fqn)
+  if !empty(class)
+    let list+= s:DoGetMemberList(class, a:context.context_type ==# s:CONTEXT_IMPORT || a:context.context_type ==# s:CONTEXT_NEED_TYPE ? 13 : a:context.context_type ==# s:CONTEXT_IMPORT_STATIC ? 12 : 11)
+    let is_class= 1
+  endif
+
+  if !is_class
+    let list+= s:DoGetPackageInfoInDirs(a:fqn, a:context.context_type ==# s:CONTEXT_PACKAGE_DECL)
   endif
 
   return list
-endfu
+endfunction
 
 " a:1    incomplete mode
 " return packages in classes directories or source pathes
