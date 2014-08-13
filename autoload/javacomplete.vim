@@ -121,6 +121,7 @@ let s:cache = {}  " FQN -> member list, e.g. {'java.lang.StringBuffer': classinf
 let s:files = {}  " source file path -> properties, e.g. {filekey: {'unit': compilationUnit, 'changedtick': tick, }}
 
 let s:reflection= javacomplete#reflection#new()
+let s:ctags= javacomplete#ctags#new()
 
 let s:source= {}
 
@@ -358,22 +359,13 @@ function! s:CompleteAfterWord(context)
     call cursor(lnum_old, col_old)
 
     " other files
-    let filepatterns = ''
     for dirpath in s:GetSourceDirs(expand('%:p'))
-      let filepatterns .= escape(dirpath, ' \') . '/*.java '
-    endfor
-    " TODO: right die now
-    silent! exe 'vimgrep /\s*' . s:RE_TYPE_DECL . '/jg ' . filepatterns
-    for item in getqflist()
-      if item.text !~ '^\s*\*\s\+'
-        let text= matchstr(s:Prune(item.text, -1), '\s*' . s:RE_TYPE_DECL)
-        if !empty(text)
-          let subs= split(substitute(text, '\s*' . s:RE_TYPE_DECL, '\1;\2;\3', ''), ';', 1)
-          if subs[2] =~# '^' . incomplete && (subs[0] =~ '\C\<public\>' || fnamemodify(bufname(item.bufnr), ':p:h') == expand('%:p:h'))
-            let types+= [{'kind': 'C', 'word': subs[2]}]
-          endif
+      let tags= s:ctags.find_types({'path': dirpath, 'recurse': 'no'})
+      for tag in tags
+        if tag.class =~# '^' . incomplete && (tag.modifiers.is_public || fnamemodify(tag.file, ':p:h') == expand('%:p:h'))
+          let types+= [{'kind': 'C', 'word': tag.class}]
         endif
-      endif
+      endfor
     endfor
   endif
 
@@ -2090,6 +2082,7 @@ fu! s:DoGetTypeInfoForFQN(fqns, srcpath, ...)
     endfor
 
     let cwd = fnamemodify(expand('%:p:h'), ':p:h:gs?[\\/]\+?/?')
+    " TODO: right die now
     silent! exe 'vimgrep /\s*' . s:RE_TYPE_DECL . '/jg ' . filepatterns
     for item in getqflist()
       if item.text !~ '^\s*\*\s\+'
