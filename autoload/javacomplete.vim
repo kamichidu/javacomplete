@@ -314,31 +314,28 @@ function! s:CompleteAfterWord(context)
     let s:all_packages_in_jars_loaded = 1
   endif
 
-  let pkgs = []
-  let types = []
-  for key in keys(s:cache)
-    if key =~# '^' . incomplete
-      if type(s:cache[key]) == type('') || get(s:cache[key], 'tag', '') == 'PACKAGE'
-        call add(pkgs, {'kind': 'P', 'word': key})
-
-        " filter out type info
-      elseif context_type != s:CONTEXT_PACKAGE_DECL && context_type != s:CONTEXT_IMPORT && context_type != s:CONTEXT_IMPORT_STATIC
-        call add(types, {'kind': 'C', 'word': key})
-      endif
-    endif
+  let packages= []
+  for pkgname in filter(s:reflection.packages(), "v:val =~# '^" . incomplete . "'")
+    let packages+= [{'kind': 'P', 'word': pkgname}]
   endfor
 
-  let pkgs += s:DoGetPackageInfoInDirs(incomplete, context_type == s:CONTEXT_PACKAGE_DECL, 1)
+  let types= []
+  if context_type !=# s:CONTEXT_PACKAGE_DECL && context_type !=# s:CONTEXT_IMPORT && context_type !=# s:CONTEXT_IMPORT_STATIC
+    for class in filter(s:reflection.classes(), "v:val =~# '^" . incomplete . "'")
+      let types+= [{'kind': 'C', 'word': class}]
+    endfor
+  endif
 
+  let packages+= s:DoGetPackageInfoInDirs(incomplete, context_type == s:CONTEXT_PACKAGE_DECL, 1)
 
   " add accessible types which name beginning with the incomplete in source files
   " TODO: remove the inaccessible
-  if context_type != s:CONTEXT_PACKAGE_DECL
+  if context_type !=# s:CONTEXT_PACKAGE_DECL
     " single type import
     for fqn in s:GetImports('imports_fqn')
       let name = fqn[strridx(fqn, ".")+1:]
       if name =~ '^' . incomplete
-        call add(types, {'kind': 'C', 'word': name})
+        let types+= [{'kind': 'C', 'word': name}]
       endif
     endfor
 
@@ -354,7 +351,7 @@ function! s:CompleteAfterWord(context)
         continue
       else
         normal w
-        call add(types, {'kind': 'C', 'word': matchstr(getline(line('.'))[col('.')-1:], s:RE_IDENTIFIER)})
+        let types+= [{'kind': 'C', 'word': matchstr(getline(line('.'))[col('.')-1:], s:RE_IDENTIFIER)}]
       endif
     endwhile
     call cursor(lnum_old, col_old)
@@ -364,31 +361,31 @@ function! s:CompleteAfterWord(context)
     for dirpath in s:GetSourceDirs(expand('%:p'))
       let filepatterns .= escape(dirpath, ' \') . '/*.java '
     endfor
+    " TODO: right die now
     silent! exe 'vimgrep /\s*' . s:RE_TYPE_DECL . '/jg ' . filepatterns
     for item in getqflist()
       if item.text !~ '^\s*\*\s\+'
-        silent! let text = matchstr(s:Prune(item.text, -1), '\s*' . s:RE_TYPE_DECL)
-        if text != ''
-          silent! let subs = split(substitute(text, '\s*' . s:RE_TYPE_DECL, '\1;\2;\3', ''), ';', 1)
+        let text= matchstr(s:Prune(item.text, -1), '\s*' . s:RE_TYPE_DECL)
+        if !empty(text)
+          let subs= split(substitute(text, '\s*' . s:RE_TYPE_DECL, '\1;\2;\3', ''), ';', 1)
           if subs[2] =~# '^' . incomplete && (subs[0] =~ '\C\<public\>' || fnamemodify(bufname(item.bufnr), ':p:h') == expand('%:p:h'))
-            call add(types, {'kind': 'C', 'word': subs[2]})
+            let types+= [{'kind': 'C', 'word': subs[2]}]
           endif
         endif
       endif
     endfor
   endif
 
-
-  let result = []
+  let result= []
 
   " add variables and members in source files
-  if context_type == s:CONTEXT_AFTER_DOT
-    let matches = s:SearchForName(incomplete, 0, 0)
-    let result += sort(eval('[' . s:DoGetFieldList(matches[2]) . ']'))
-    let result += sort(eval('[' . s:DoGetMethodList(matches[1]) . ']'))
+  if context_type ==# s:CONTEXT_AFTER_DOT
+    let matches= s:SearchForName(incomplete, 0, 0)
+    let result+= sort(eval('[' . s:DoGetFieldList(matches[2]) . ']'))
+    let result+= sort(eval('[' . s:DoGetMethodList(matches[1]) . ']'))
   endif
-  let result += sort(pkgs)
-  let result += sort(types)
+  let result+= sort(packages)
+  let result+= sort(types)
 
   return result
 endfunction
