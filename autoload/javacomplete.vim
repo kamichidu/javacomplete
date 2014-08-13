@@ -1601,9 +1601,9 @@ fu! javacomplete#SetSearchdeclMethod(method)
 endfu
 
 " JDK1.1                {{{2
-fu! javacomplete#UseJDK11()
-  let s:isjdk11 = 1
-endfu
+function! javacomplete#UseJDK11()
+  let s:reflection.use_jdk11()
+endfunction
 
 " java compiler                {{{2
 fu! javacomplete#GetCompiler()
@@ -1615,16 +1615,14 @@ fu! javacomplete#SetCompiler(compiler)
 endfu
 
 " jvm launcher                {{{2
-fu! javacomplete#GetJVMLauncher()
-  return exists('s:interpreter') && s:interpreter !~  '^\s*$' ? s:interpreter : 'java'
-endfu
+function! javacomplete#GetJVMLauncher()
+  return s:reflection.jvm()
+endfunction
 
-fu! javacomplete#SetJVMLauncher(interpreter)
-  if javacomplete#GetJVMLauncher() != a:interpreter
-    let s:cache = {}
-  endif
-  let s:interpreter = a:interpreter
-endfu
+function! javacomplete#SetJVMLauncher(interpreter)
+  call s:reflection.jvm(a:interpreter)
+  let s:cache = {}
+endfunction
 
 " sourcepath                {{{2
 fu! javacomplete#AddSourcePath(s)
@@ -1690,44 +1688,27 @@ fu! s:GetSourceDirs(filepath, ...)
 endfu
 
 " classpath                {{{2
-fu! javacomplete#AddClassPath(s)
-  if !isdirectory(a:s) && !match(a:s, '\.jar$')
-    echoerr 'invalid classpath: ' . a:s
-    return
-  endif
-
-  if !exists('s:classpath')
-    let s:classpath = [a:s]
-  elseif index(s:classpath, a:s) == -1
-    call add(s:classpath, a:s)
-  endif
+function! javacomplete#AddClassPath(s)
+  call s:reflection.add_classpath(a:s)
   let s:cache = {}
-endfu
+endfunction
 
-fu! javacomplete#DelClassPath(s)
-  if !exists('s:classpath') | return   | endif
-  let idx = index(s:classpath, a:s)
-  if idx != -1
-    call remove(s:classpath, idx)
-  endif
-endfu
+function! javacomplete#DelClassPath(s)
+  call s:reflection.remove_classpath(a:s)
+endfunction
 
-fu! javacomplete#SetClassPath(s)
-  if type(a:s) == type("")
-    let s:classpath = split(a:s, javacomplete#GetClassPathSep())
-  elseif type(a:s) == type([])
-    let s:classpath = a:s
-  endif
+function! javacomplete#SetClassPath(s)
+  call s:reflection.set_classpath(a:s)
   let s:cache = {}
-endfu
+endfunction
 
 fu! javacomplete#GetClassPathSep()
   return s:PATH_SEP
 endfu
 
-fu! javacomplete#GetClassPath()
-  return exists('s:classpath') ? join(s:classpath, javacomplete#GetClassPathSep()) : ''
-endfu
+function! javacomplete#GetClassPath()
+  return s:reflection.get_classpath()
+endfunction
 
 " s:GetClassPath()              {{{2
 " return only classpath which are directories
