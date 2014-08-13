@@ -308,8 +308,9 @@ function! s:CompleteAfterWord(context)
   " packages in jar files
   if !exists('s:all_packages_in_jars_loaded')
     " {'package name': {'tag': 'PACKAGE', 'classes': ['simple class name', ...]}}
-    let packages= s:reflection.packages()
-    call extend(s:cache, packages)
+    for pkgname in s:reflection.packages()
+      let s:cache[pkgname]= s:reflection.package_info(pkgname)
+    endfor
     let s:all_packages_in_jars_loaded = 1
   endif
 
