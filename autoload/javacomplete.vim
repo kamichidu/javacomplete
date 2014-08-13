@@ -228,52 +228,53 @@ function! s:source.get_complete_pos(context)
 endfunction
 
 function! s:source.gather_candidates(context)
-  if a:context.precending =~ '^\s*$' && a:context.incomplete =~ '^\s*$'
+  if a:context.precending =~# '^\s*$' && a:context.incomplete =~# '^\s*$'
     return []
   endif
 
-
-  let result = []
-  if a:context.precending !~ '^\s*$'
-    if a:context.context_type == s:CONTEXT_AFTER_DOT
-      silent! let result = s:CompleteAfterDot(a:context.precending)
-    elseif a:context.context_type == s:CONTEXT_IMPORT || a:context.context_type == s:CONTEXT_IMPORT_STATIC || a:context.context_type == s:CONTEXT_PACKAGE_DECL || a:context.context_type == s:CONTEXT_NEED_TYPE
-      silent! let result = s:GetMembers(a:context.precending[:-2])
-    elseif a:context.context_type == s:CONTEXT_METHOD_PARAM
-      if a:context.incomplete == '+'
-        silent! let result = s:GetConstructorList(a:context.precending)
+  let result= []
+  if a:context.precending !~# '^\s*$'
+    if a:context.context_type ==# s:CONTEXT_AFTER_DOT
+      let result= s:CompleteAfterDot(a:context.precending)
+    elseif a:context.context_type ==# s:CONTEXT_IMPORT ||
+    \   a:context.context_type ==# s:CONTEXT_IMPORT_STATIC ||
+    \   a:context.context_type ==# s:CONTEXT_PACKAGE_DECL ||
+    \   a:context.context_type ==# s:CONTEXT_NEED_TYPE
+      let result= s:GetMembers(a:context.precending[ : -2])
+    elseif a:context.context_type ==# s:CONTEXT_METHOD_PARAM
+      if a:context.incomplete ==# '+'
+        let result= s:GetConstructorList(a:context.precending)
       else
-        silent! let result = s:CompleteAfterDot(a:context.precending)
+        let result= s:CompleteAfterDot(a:context.precending)
       endif
     endif
 
     " only incomplete word
-  elseif a:context.incomplete !~ '^\s*$'
+  elseif a:context.incomplete !~# '^\s*$'
     " only need methods
-    if a:context.context_type == s:CONTEXT_METHOD_PARAM
-      let methods = s:SearchForName(a:context.incomplete, 0, 1)[1]
+    if a:context.context_type ==# s:CONTEXT_METHOD_PARAM
+      let methods= s:SearchForName(a:context.incomplete, 0, 1)[1]
       call extend(result, eval('[' . s:DoGetMethodList(methods) . ']'))
 
     else
-      let result = s:CompleteAfterWord(a:context)
+      let result= s:CompleteAfterWord(a:context)
     endif
 
     " then no filter needed
-    let a:context.incomplete = ''
+    let a:context.incomplete= ''
   endif
 
-
   " filter according to b:incomplete
-  if len(a:context.incomplete) > 0 && a:context.incomplete != '+'
-    let result = filter(result, "type(v:val) == type('') ? v:val =~ '^" . a:context.incomplete . "' : v:val['word'] =~ '^" . a:context.incomplete . "'")
+  if !empty(a:context.incomplete) && a:context.incomplete !=# '+'
+    let result= filter(result, "type(v:val) == type('') ? v:val =~ '^" . a:context.incomplete . "' : v:val['word'] =~ '^" . a:context.incomplete . "'")
   endif
 
   if exists('s:padding') && !empty(s:padding)
     for item in result
       if type(item) == type("")
-        let item .= s:padding
+        let item.= s:padding
       else
-        let item.word .= s:padding
+        let item.word.= s:padding
       endif
     endfor
     unlet s:padding
