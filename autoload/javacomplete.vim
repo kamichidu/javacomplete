@@ -340,11 +340,12 @@ function! s:CompleteAfterWord(context)
     endfor
 
     " current file
-    let lnum_old = line('.')
-    let col_old = col('.')
+    " TODO: improve
+    let lnum_old= line('.')
+    let col_old= col('.')
     call cursor(1, 1)
     while 1
-      let lnum = search('\<\C\(class\|interface\|enum\)[ \t\n\r]\+' . incomplete . '[a-zA-Z0-9_$]*[< \t\n\r]', 'W')
+      let lnum= search('\<\C\(class\|interface\|enum\)\_s\+' . incomplete . '[a-zA-Z0-9_$]*[\_s', 'W')
       if lnum == 0
         break
       elseif s:InCommentOrLiteral(line('.'), col('.'))
