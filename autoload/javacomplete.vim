@@ -2028,28 +2028,27 @@ fu! s:DoGetTypeInfoForFQN(fqns, srcpath, ...)
   endif
 
   " 1
-  let files = {}  " fqn -> java file path
+  let files= {}  " fqn -> java file path
   for fqn in a:fqns
     " toplevel type
     let filepath = globpath(a:srcpath, substitute(fqn, '\.', '/', 'g') . '.java')
-    if filepath != ''
-      let files[fqn] = expand(filepath)
+    if !empty(filepath)
+      let files[fqn]= expand(filepath)
 
       " nested type
     elseif stridx(fqn, '.') >= 0
-      let idents = split(fqn, '\.')
-      let i = len(idents)-2
+      let idents= split(fqn, '\.')
+      let i= len(idents) - 2
       while i >= 0
-        let filepath = globpath(a:srcpath, join(idents[:i], '/') . '.java')
-        if filepath != ''
-          let files[fqn] = expand(filepath)
+        let filepath= globpath(a:srcpath, join(idents[ : i], '/') . '.java')
+        if !empty(filepath)
+          let files[fqn]= expand(filepath)
           break
         endif
-        let i -= 1
+        let i-= 1
       endwhile
     endif
   endfor
-
 
   " 2
   let dirs = {}    " dir.idents  -> names of nested type
@@ -2058,16 +2057,16 @@ fu! s:DoGetTypeInfoForFQN(fqns, srcpath, ...)
   for fqn in a:fqns
     if !has_key(files, fqn)
       for path in split(a:srcpath, ',')
-        let idents = split(fqn, '\.')
-        let i = len(idents)-2
+        let idents= split(fqn, '\.')
+        let i= len(idents) - 2
         while i >= 0
-          let dirpath = path . '/' . join(idents[:i], '/')
+          let dirpath= path . '/' . join(idents[ : i], '/')
           " it is a package
           if isdirectory(dirpath)
-            let dirs[fnamemodify(dirpath, ':p:h:gs?[\\/]\+?/?')] = {'fqn': fqn, 'idents': idents[i+1:]}
+            let dirs[fnamemodify(dirpath, ':p:h:gs?[\\/]\+?/?')]= {'fqn': fqn, 'idents': idents[i + 1:]}
             break
           endif
-          let i -= 1
+          let i-= 1
         endwhile
       endfor
     endif
@@ -2076,27 +2075,17 @@ fu! s:DoGetTypeInfoForFQN(fqns, srcpath, ...)
   if !empty(dirs)
     let items = {}  " dir -> items of quick fix
 
-    let filepatterns = ''
-    for dirpath in keys(dirs)
-      let filepatterns .= escape(dirpath, ' \') . '/*.java '
-    endfor
-
     let cwd = fnamemodify(expand('%:p:h'), ':p:h:gs?[\\/]\+?/?')
-    " TODO: right die now
-    silent! exe 'vimgrep /\s*' . s:RE_TYPE_DECL . '/jg ' . filepatterns
-    for item in getqflist()
-      if item.text !~ '^\s*\*\s\+'
-        silent! let text = matchstr(s:Prune(item.text, -1), '\s*' . s:RE_TYPE_DECL)
-        if text != ''
-          silent! let subs = split(substitute(text, '\s*' . s:RE_TYPE_DECL, '\1;\2;\3', ''), ';', 1)
-          let dirpath = fnamemodify(bufname(item.bufnr), ':p:h:gs?[\\/]\+?/?')
-          let idents = dirs[dirpath].idents
-          if index(idents, subs[2]) >= 0 && (subs[0] =~ '\C\<public\>' || dirpath == cwd)  " FIXME?
-            let item.subs = subs
-            let dirs[dirpath].qfitems = get(dirs[dirpath], 'qfitems', []) + [item]
-          endif
+    for dirpath in keys(dirs)
+      let tags= s:ctags.find_types(dirpath)
+      for tag in tags
+        let dirpath = fnamemodify(bufname(item.bufnr), ':p:h:gs?[\\/]\+?/?')
+        let idents = dirs[dirpath].idents
+        if index(idents, tag.class) >= 0 && (tag.modifiers.is_public || dirpath == cwd)  " FIXME?
+          let item.subs = subs
+          let dirs[dirpath].qfitems = get(dirs[dirpath], 'qfitems', []) + [item]
         endif
-      endif
+      endfor
     endfor
 
     for dirpath in keys(dirs)
