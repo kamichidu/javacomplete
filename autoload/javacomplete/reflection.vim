@@ -4,9 +4,8 @@ set cpo&vim
 let s:V= vital#of('javacomplete')
 let s:P= s:V.import('Process')
 let s:M= s:V.import('Vim.Message')
+let s:L= s:V.import('Data.List')
 unlet s:V
-
-" let s:cache= {}  " FQN -> member list, e.g. {'java.lang.StringBuffer': classinfo, 'java.util': packageinfo, '/dir/TopLevelClass.java': compilationUnit}
 
 let s:reflection= {
 \   'attrs': {
@@ -14,7 +13,7 @@ let s:reflection= {
 \       'is_jdk11': 0,
 \       'classpath': [],
 \       'cache': {},
-\       'packages_loaded': 0,
+\       'packages_cached': 0,
 \   },
 \}
 
@@ -22,7 +21,7 @@ function! s:reflection.jvm(...)
     let self.attrs.jvm= get(a:, 0, self.attrs.jvm)
 
     if a:0 > 0
-        let self.attrs.cache= {}
+        call self.clear_cache()
     endif
 
     return self.attrs.jvm
@@ -39,7 +38,7 @@ function! s:reflection.add_classpath(path)
     endfor
 
     let self.attrs.classpath+= paths
-    let self.attrs.cache= {}
+    call self.clear_cache()
 endfunction
 
 function! s:reflection.remove_classpath(path)
@@ -53,7 +52,7 @@ function! s:reflection.remove_classpath(path)
         endif
     endfor
 
-    let self.attrs.cache= {}
+    call self.clear_cache()
 endfunction
 
 function! s:reflection.set_classpath(path)
@@ -64,7 +63,7 @@ function! s:reflection.set_classpath(path)
     endif
 
     let self.attrs.classpath= paths
-    let self.attrs.cache= {}
+    call self.clear_cache()
 endfunction
 
 function! s:reflection.get_classpath()
@@ -91,23 +90,24 @@ function! s:reflection.use_jdk11()
 endfunction
 
 function! s:reflection.packages()
-    if !self.attrs.packages_loaded
-        " {'package name': {'tag': 'PACKAGE', 'classes': ['simple class name', ...]}}
-        let packages= eval(self.run_reflection('-P', '-'))
-        call extend(self.attrs.cache, packages)
-        let self.attrs.packages_loaded= 1
-    endif
+    call self.ensure_cache()
 
     return sort(filter(keys(self.attrs.cache), 'self.attrs.cache[v:val].tag ==# "PACKAGE"'))
     " s:DoGetInfoByReflection('-', '-P')
 endfunction
 
 function! s:reflection.package_info(package)
-    if !self.attrs.packages_loaded
-        call self.packages()
+    call self.ensure_cache()
+
+    if !has_key(self.attrs.cache, a:package)
+        return {}
     endif
 
-    return deepcopy(get(self.attrs.cache, a:package, {}))
+    let package= deepcopy(self.attrs.cache[a:package])
+    " ensure order
+    let package.classes= sort(get(package, 'classes', []))
+    let package.subpackages= sort(get(package, 'subpackages', []))
+    return package
 endfunction
 
 function! s:reflection.classes()
@@ -177,9 +177,20 @@ function! s:reflection.run_reflection(option, args)
   return s:P.system(cmd)
 endfunction
 
+function! s:reflection.ensure_cache()
+    " check a cache already made
+    if self.attrs.packages_cached
+        return
+    endif
+
+    let packages= eval(self.run_reflection('-P', '-'))
+    call extend(self.attrs.cache, packages)
+    let self.attrs.packages_cached= 1
+endfunction
+
 function! s:reflection.clear_cache()
     let self.attrs.cache= {}
-    let self.attrs.packages_loaded= 0
+    let self.attrs.packages_cached= 0
 endfunction
 
 function! s:GetClassPathOfJsp()
