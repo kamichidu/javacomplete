@@ -121,6 +121,7 @@ function! s:reflection.classes()
     return sort(classes)
 endfunction
 
+" Deprecated: use other api
 " classes is a comma separated class name
 function! s:reflection.check_exists_and_read_class_info(classes)
     return eval(self.run_reflection('-E', a:classes))
@@ -130,10 +131,19 @@ function! s:reflection.check_exists_and_read_class_info(classes)
 endfunction
 
 function! s:reflection.class_info(class)
+    if has_key(self.attrs.cache, a:class)
+        return deepcopy(self.attrs.cache[a:class])
+    endif
+
     let output= self.run_reflection('-C', a:class)
     try
         let expr= eval(output)
-        return (type(expr) == type({})) ? expr : {}
+        if type(expr) != type({})
+            return {}
+        endif
+        " fqn => class info
+        let self.attrs.cache[expr.name]= expr
+        return deepcopy(expr)
     catch
         return {}
     endtry
@@ -141,6 +151,7 @@ function! s:reflection.class_info(class)
       " let ti = s:GetClassInfoFromSource(fqn[strridx(fqn, '.')+1:], files[fqn])
 endfunction
 
+" Deprecated: use other api
 function! s:reflection.package_or_class_info(class)
   if has_key(self.attrs.cache, a:class)
     return self.attrs.cache[a:class]
