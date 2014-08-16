@@ -16,6 +16,15 @@ describe 'javacomplete#reflection'
         \]
     end
 
+    it 'gets a package info'
+        let package= g:R.package_info('jp.michikusa.chitose.unitejavaimport')
+        Expect package ==# {
+        \   'tag': 'PACKAGE',
+        \   'subpackages': ['predicate', 'util'],
+        \   'classes': ['DatabaseRepository', 'InMemoryRepository', 'Repository'],
+        \}
+    end
+
     it 'gets all class names'
         let classes= filter(g:R.classes(), 'v:val =~# "^jp\\."')
         Expect classes ==# [
