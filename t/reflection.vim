@@ -15,4 +15,27 @@ describe 'javacomplete#reflection'
         \   'jp.michikusa.chitose.unitejavaimport.util',
         \]
     end
+
+    it 'gets all class names'
+        let classes= filter(g:R.classes(), 'v:val =~# "^jp\\."')
+        Expect classes ==# [
+        \   'jp.michikusa.chitose.unitejavaimport.DatabaseRepository',
+        \   'jp.michikusa.chitose.unitejavaimport.InMemoryRepository',
+        \   'jp.michikusa.chitose.unitejavaimport.Repository',
+        \   'jp.michikusa.chitose.unitejavaimport.predicate.IsConstructor',
+        \   'jp.michikusa.chitose.unitejavaimport.predicate.IsInitializer',
+        \   'jp.michikusa.chitose.unitejavaimport.predicate.IsPublic',
+        \   'jp.michikusa.chitose.unitejavaimport.predicate.IsStatic',
+        \   'jp.michikusa.chitose.unitejavaimport.predicate.IsStaticInitializer',
+        \   'jp.michikusa.chitose.unitejavaimport.predicate.RegexMatch',
+        \   'jp.michikusa.chitose.unitejavaimport.predicate.StartsWithPackage',
+        \   'jp.michikusa.chitose.unitejavaimport.util.AbstractTaskWorker',
+        \   'jp.michikusa.chitose.unitejavaimport.util.AggregateWorkerSupport',
+        \   'jp.michikusa.chitose.unitejavaimport.util.GenericOption',
+        \   'jp.michikusa.chitose.unitejavaimport.util.KeepAliveOutputStream',
+        \   'jp.michikusa.chitose.unitejavaimport.util.Pair',
+        \   'jp.michikusa.chitose.unitejavaimport.util.TaskWorker',
+        \   'jp.michikusa.chitose.unitejavaimport.util.WorkerSupport',
+        \]
+    end
 end
