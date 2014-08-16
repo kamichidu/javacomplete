@@ -1706,7 +1706,7 @@ endfunction
 " return only classpath which are directories
 fu! s:GetClassDirs()
   let dirs = []
-  for path in split(javacomplete#util#get_classpath(), s:PATH_SEP)
+  for path in split(s:reflection.get_classpath(), s:PATH_SEP)
     if isdirectory(path)
       call add(dirs, fnamemodify(path, ':p:h'))
     endif

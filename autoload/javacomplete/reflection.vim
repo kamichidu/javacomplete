@@ -67,6 +67,25 @@ function! s:reflection.set_classpath(path)
     let s:cache = {}
 endfunction
 
+function! s:reflection.get_classpath()
+    let paths= [s:get_javacomplete_classpath()]
+
+    if &filetype ==# 'jsp'
+        let paths+= s:GetClassPathOfJsp()
+    endif
+    if exists('b:classpath')
+        let paths+= split(b:javacomplete_classpath, javacomplete#GetClassPathSep())
+    elseif !empty(self.attrs.classpath)
+        let paths+= self.attrs.classpath
+    elseif exists('g:javacomplete_classpath')
+        let paths+= split(g:javacomplete_classpath, javacomplete#GetClassPathSep())
+    else
+        let paths+= split($CLASSPATH, javacomplete#GetClassPathSep())
+    endif
+
+    return join(paths, javacomplete#GetClassPathSep())
+endfunction
+
 function! s:reflection.use_jdk11()
     let self.attrs.is_jdk11= 1
 endfunction
@@ -79,7 +98,7 @@ function! s:reflection.packages()
         let s:all_packages_in_jars_loaded = 1
     endif
 
-    return filter(keys(s:cache), 's:cache[v:val].tag ==# "PACKAGE"')
+    return sort(filter(keys(s:cache), 's:cache[v:val].tag ==# "PACKAGE"'))
     " s:DoGetInfoByReflection('-', '-P')
 endfunction
 
@@ -147,11 +166,81 @@ function! s:reflection.run_reflection(option, args)
   let classpath= ''
 
   if !self.attrs.is_jdk11
-    let classpath= ' -classpath "' . javacomplete#util#convert_to_java_path(javacomplete#util#get_classpath()) . '" '
+    let classpath= ' -classpath "' . javacomplete#util#convert_to_java_path(self.get_classpath()) . '" '
   endif
 
   let cmd= self.attrs.jvm . classpath . ' Reflection ' . a:option . ' "' . a:args . '"'
+  call writefile([cmd], 'log')
   return s:P.system(cmd)
+endfunction
+
+function! s:GetClassPathOfJsp()
+    if exists('b:classpath_jsp')
+        return b:classpath_jsp
+    endif
+
+    let b:classpath_jsp= ''
+    let path= expand('%:p:h')
+    while 1
+        if isdirectory(path . '/WEB-INF' )
+            if isdirectory(path . '/WEB-INF/classes')
+                let b:classpath_jsp.= s:PATH_SEP . path . '/WEB-INF/classes'
+            endif
+            if isdirectory(path . '/WEB-INF/lib')
+                let libs= globpath(path . '/WEB-INF/lib', '*.jar')
+                if libs != ''
+                    let b:classpath_jsp.= s:PATH_SEP . substitute(libs, "\n", s:PATH_SEP, 'g')
+                endif
+            endif
+            return b:classpath_jsp
+        endif
+
+        let prev= path
+        let path= fnamemodify(path, ":p:h:h")
+        if path == prev
+            break
+        endif
+    endwhile
+    return ''
+endfunction
+
+function! s:get_javacomplete_classpath()
+    " remove *.class from wildignore if it exists, so that globpath doesn't ignore Reflection.class
+    " vim versions >= 702 can add the 1 flag to globpath which ignores '*.class" in wildingore
+    if &wildignore =~# "*.class"
+        set wildignore-=*.class
+        let has_class= 1
+    else
+        let has_class= 0
+    endif
+    try
+        let classfile= globpath(&rtp, 'autoload/Reflection.class')
+
+        if empty(classfile)
+            " try to find source file and compile to $HOME
+            let srcfile= globpath(&rtp, 'autoload/Reflection.java')
+
+            if !empty(srcfile)
+                let srcfile= javacomplete#util#convert_to_java_path(srcfile)
+                let classdir= javacomplete#util#convert_to_java_path(fnamemodify(srcfile, ':h'))
+
+                let result= s:P.system(javacomplete#GetCompiler() . ' -d ' . shellescape(classdir) . ' ' . shellescape(srcfile))
+                let classfile= globpath(&rtp, 'autoload/Reflection.class')
+                if empty(classfile)
+                    call s:M.error(srcfile . ' can not be compiled. Please check it')
+                endif
+            else
+                call s:M.error('No Reflection.class found in $HOME/.vim or any autoload directory of the &rtp. And no Reflection.java found in any autoload directory of the &rtp to compile.')
+            endif
+        endif
+
+        return fnamemodify(classfile, ':p:h')
+    finally
+        " add *.class to wildignore if it existed before
+        if has_class == 1
+            set wildignore+=*.class
+        endif
+    endtry
 endfunction
 
 function! javacomplete#reflection#new()
