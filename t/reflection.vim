@@ -38,4 +38,39 @@ describe 'javacomplete#reflection'
         \   'jp.michikusa.chitose.unitejavaimport.util.WorkerSupport',
         \]
     end
+
+    it 'gets a class information'
+        let class= g:R.class_info('jp.michikusa.chitose.unitejavaimport.util.WorkerSupport')
+        Expect class ==# {
+        \   'tag': 'CLASSDEF',
+        \   'flags': '11000000001',
+        \   'name': 'jp.michikusa.chitose.unitejavaimport.util.WorkerSupport',
+        \   'classpath': '1',
+        \   'fqn': 'jp.michikusa.chitose.unitejavaimport.util.WorkerSupport',
+        \   'extends': [],
+        \   'ctors': [],
+        \   'fields': [],
+        \   'methods': [
+        \       {
+        \           'n': 'addWorker',
+        \           'm': '10000000001',
+        \           'r': 'void',
+        \           'p': ['jp.michikusa.chitose.unitejavaimport.util.TaskWorker'],
+        \           'd': 'public abstract void jp.michikusa.chitose.unitejavaimport.util.WorkerSupport.addWorker(jp.michikusa.chitose.unitejavaimport.util.TaskWorker)',
+        \       },
+        \       {
+        \           'n': 'removeWorker',
+        \           'm': '10000000001',
+        \           'r': 'void',
+        \           'p': ['jp.michikusa.chitose.unitejavaimport.util.TaskWorker'],
+        \           'd': 'public abstract void jp.michikusa.chitose.unitejavaimport.util.WorkerSupport.removeWorker(jp.michikusa.chitose.unitejavaimport.util.TaskWorker)',
+        \       },
+        \   ],
+        \   'classes': [],
+        \   'declared_ctors': [],
+        \   'declared_fields': [],
+        \   'declared_methods': [],
+        \   'declared_classes': [],
+        \}
+    end
 end
