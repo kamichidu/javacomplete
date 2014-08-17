@@ -4,3 +4,4 @@ javacomplete
 Data.String
 Process
 Vim.Message
+System.Filepath

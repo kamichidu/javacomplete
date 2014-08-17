@@ -229,19 +229,23 @@ function! s:source.get_complete_pos(context)
 endfunction
 
 function! s:source.gather_candidates(context)
-  if a:context.precending =~# '^\s*$' && a:context.incomplete =~# '^\s*$'
+  " TODO: remove this
+  let a:context.precending= s:S.trim(a:context.precending)
+  let a:context.incomplete= s:S.trim(a:context.incomplete)
+
+  if empty(a:context.precending) && empty(a:context.incomplete)
     return []
   endif
 
   let result= []
-  if a:context.precending !~# '^\s*$'
+  if !empty(a:context.precending)
     if a:context.context_type ==# s:CONTEXT_AFTER_DOT
       let result= s:CompleteAfterDot(a:context.precending)
     elseif a:context.context_type ==# s:CONTEXT_IMPORT ||
     \   a:context.context_type ==# s:CONTEXT_IMPORT_STATIC ||
     \   a:context.context_type ==# s:CONTEXT_PACKAGE_DECL ||
     \   a:context.context_type ==# s:CONTEXT_NEED_TYPE
-      let result= s:GetMembers(a:context, a:context.precending[ : -2])
+      let result= s:GetMembers(a:context, s:S.substitute_last(a:context.precending, '\.', ''))
     elseif a:context.context_type ==# s:CONTEXT_METHOD_PARAM
       if a:context.incomplete ==# '+'
         let result= s:GetConstructorList(a:context.precending)
@@ -250,13 +254,12 @@ function! s:source.gather_candidates(context)
       endif
     endif
 
-    " only incomplete word
-  elseif a:context.incomplete !~# '^\s*$'
+  " only incomplete word
+  elseif !empty(a:context.incomplete)
     " only need methods
     if a:context.context_type ==# s:CONTEXT_METHOD_PARAM
       let methods= s:SearchForName(a:context.incomplete, 0, 1)[1]
       call extend(result, eval('[' . s:DoGetMethodList(methods) . ']'))
-
     else
       let result= s:CompleteAfterWord(a:context)
     endif
@@ -391,9 +394,8 @@ function! s:CompleteAfterDot(expr)
     return []
   endif
 
-
   " 0. String literal
-  if items[-1] =~  '"$'
+  if items[-1] =~ '"$'
     return s:GetMemberList("java.lang.String")
   endif
 
@@ -2022,54 +2024,49 @@ endfu
 " return  a dict of fqn -> type info
 " precondition: 
 " NOTE: call expand() to convert path to standard form
+function! javacomplete#do_get_type_info_for_fqn(fqns, srcpath, ...)
+  return call('s:DoGetTypeInfoForFQN', [a:fqns, a:srcpath] + a:000)
+endfunction
+function! javacomplete#get_cache()
+  return s:cache
+endfunction
 fu! s:DoGetTypeInfoForFQN(fqns, srcpath, ...)
   if empty(a:fqns) || empty(a:srcpath)
     return
   endif
+  let fqns= copy(a:fqns)
+  let srcpaths= split(a:srcpath, ',')
+  let search_all= get(a:000, 0, 0)
 
   " 1
-  let files= {}  " fqn -> java file path
-  for fqn in a:fqns
-    " toplevel type
-    let filepath = globpath(a:srcpath, substitute(fqn, '\.', '/', 'g') . '.java')
-    if !empty(filepath)
-      let files[fqn]= expand(filepath)
-
-      " nested type
-    elseif stridx(fqn, '.') >= 0
-      let idents= split(fqn, '\.')
-      let i= len(idents) - 2
-      while i >= 0
-        let filepath= globpath(a:srcpath, join(idents[ : i], '/') . '.java')
-        if !empty(filepath)
-          let files[fqn]= expand(filepath)
-          break
-        endif
-        let i-= 1
-      endwhile
+  let files = {}  " fqn -> java file path
+  for fqn in fqns
+    let res= javacomplete#util#typename2filename(fqn, srcpaths)
+    if res.found
+      let files[fqn]= res.filename
     endif
+  endfor
+  " remove already resolved fqn
+  for fqn in keys(files)
+    call remove(fqns, index(fqns, fqn))
   endfor
 
   " 2
   let dirs = {}    " dir.idents  -> names of nested type
   " dir.qfitems  -> items of quick fix
   " dir.fqn  -> fqn
-  for fqn in a:fqns
-    if !has_key(files, fqn)
-      for path in split(a:srcpath, ',')
-        let idents= split(fqn, '\.')
-        let i= len(idents) - 2
-        while i >= 0
-          let dirpath= path . '/' . join(idents[ : i], '/')
-          " it is a package
-          if isdirectory(dirpath)
-            let dirs[fnamemodify(dirpath, ':p:h:gs?[\\/]\+?/?')]= {'fqn': fqn, 'idents': idents[i + 1:]}
-            break
-          endif
-          let i-= 1
-        endwhile
-      endfor
+  for fqn in fqns
+    let res= javacomplete#util#typename2dirname(fqn, srcpaths)
+    if res.found
+      let dirs[fqn]= {
+      \ 'dirname': res.dirname,
+      \ 'idents': res.idents,
+      \}
     endif
+  endfor
+  " remove already resolved fqn
+  for fqn in keys(dirs)
+    call remove(fqns, index(fqns, fqn))
   endfor
 
   if !empty(dirs)
@@ -2107,59 +2104,41 @@ fu! s:DoGetTypeInfoForFQN(fqns, srcpath, ...)
     endfor
   endif
 
-
   for fqn in keys(files)
-    if !has_key(s:cache, fqn) || get(get(s:files, files[fqn], {}), 'modifiedtime', 0) != getftime(files[fqn])
-      let ti = s:GetClassInfoFromSource(fqn[strridx(fqn, '.')+1:], files[fqn])
-      if !empty(ti)
-        let s:cache[fqn] = s:Sort(ti)
+    let filename= files[fqn]
+    let file_info= get(s:files, filename, {})
+
+    if !has_key(s:cache, fqn) || get(file_info, 'modifiedtime', 0) != getftime(filename)
+      let type_info= s:GetClassInfoFromSource(fqn[strridx(fqn, '.') + 1 : ], filename)
+      if !empty(type_info)
+        let s:cache[fqn]= s:Sort(type_info)
       endif
     endif
-    if (a:0 == 0 || !a:1)
+
+    if !search_all
       return
     endif
   endfor
-
 
   " 3
-  let commalist = ''
-  for fqn in a:fqns
-    if has_key(s:cache, fqn) && (a:0 == 0 || !a:1)
-      return
-    else "if stridx(fqn, '.') >= 0
-      let commalist .= fqn . ','
+  for fqn in fqns
+    let info= s:reflection.class_info(fqn)
+    if !empty(info)
+      let s:cache[info.name]= info
     endif
   endfor
-  if !empty(commalist)
-    let res= s:reflection.check_exists_and_read_class_info(commalist)
-    if type(res) == type({})
-      for key in keys(res)
-        if !has_key(s:cache, key)
-          if type(res[key]) == type({})
-            let s:cache[key] = s:Sort(res[key])
-          elseif type(res[key]) == type([])
-            let s:cache[key] = sort(res[key])
-          endif
-        endif
-      endfor
-    endif
-  endif
 endfu
 
 " a:1  filepath
 " a:2  package name
 fu! s:DoGetClassInfo(class, ...)
-  if has_key(s:cache, a:class)
-    return s:cache[a:class]
-  endif
-
   " array type:  TypeName[] or '[I' or '[[Ljava.lang.String;'
-  if a:class[-1:] == ']' || a:class[0] == '['
+  if a:class =~# '^\s*\[\|\]\s*$'
     return s:ARRAY_TYPE_INFO
   endif
 
   " either this or super is not qualified
-  if a:class == 'this' || a:class == 'super'
+  if a:class ==# 'this' || a:class ==# 'super'
     if &ft == 'jsp'
       let ci = s:DoGetReflectionClassInfo('javax.servlet.jsp.HttpJspPage')
       if a:class == 'this'
@@ -2186,22 +2165,21 @@ fu! s:DoGetClassInfo(class, ...)
     return {}
   endif
 
-
   if a:class !~ '^\s*' . s:RE_QUALID . '\s*$' || s:HasKeyword(a:class)
     return {}
   endif
 
-
-  let typename  = substitute(a:class, '\s', '', 'g')
+  let typename  = s:S.trim(a:class)
   let filekey  = a:0 > 0 ? a:1 : s:GetCurrentFileKey()
   let packagename = a:0 > 1 ? a:2 : s:GetPackageName()
   let srcpath  = join(s:GetSourceDirs(a:0 > 0 && a:1 != bufnr('%') ? a:1 : expand('%:p'), packagename), ',')
 
+  PP! {'typename': typename, 'filekey': filekey, 'packagename': packagename, 'srcpath': srcpath}
   let names = split(typename, '\.')
   " remove the package name if in the same packge
   if len(names) > 1
-    if packagename == join(names[:-2], '.')
-      let names = names[-1:]
+    if packagename ==# join(names[ : -2], '.')
+      let names = names[-1 : ]
     endif
   endif
 
@@ -2215,7 +2193,6 @@ fu! s:DoGetClassInfo(class, ...)
       return {}
     endif
   endif
-
 
   " The standard search order of a simple type name is as follows:
   " 1. The current type including inherited types.
@@ -2638,6 +2615,7 @@ function! s:GetMemberList(class)
     return []
   endif
 
+  " FIXME: broken for java.lang.String
   return s:DoGetMemberList(s:DoGetClassInfo(a:class), 0)
 endfunction
 

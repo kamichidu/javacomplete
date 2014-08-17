@@ -8,4 +8,11 @@ class Simple
         "".len;
         ";
     }
+
+    public void complete_java_lang_Object()
+    {
+        Object o;
+
+        o. 
+    }
 }
