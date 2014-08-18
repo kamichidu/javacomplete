@@ -138,12 +138,17 @@ function! s:reflection.class_info(class)
     let output= self.run_reflection('-C', a:class)
     try
         let expr= eval(output)
-        if type(expr) != type({})
-            return {}
+        if type(expr) == type([])
+            for e in expr
+                let self.attrs.cache[e.name]= e
+            endfor
+            return deepcopy(get(self.attrs.cache, a:class, {}))
+        elseif type(expr) == type({})
+            " fqn => class info
+            let self.attrs.cache[expr.name]= expr
+            return deepcopy(expr)
         endif
-        " fqn => class info
-        let self.attrs.cache[expr.name]= expr
-        return deepcopy(expr)
+        return {}
     catch
         return {}
     endtry

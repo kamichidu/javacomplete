@@ -27,10 +27,12 @@ describe 'javacomplete#Complete'
         Expect pos == -1
     end
 
-    it 'test'
+    it 'gets a class info (test)'
         read t/fixtures/Simple.java
 
-        Expect javacomplete#do_get_type_info_for_fqn(['java.lang.Object'], 't/fixtures/') ==# []
+        call javacomplete#do_get_type_info_for_fqn(['java.lang.Object'], 't/fixtures/')
+        let info= get(javacomplete#get_cache(), 'java.lang.Object', {})
+        Expect info.name ==# 'java.lang.Object'
     end
 
     " it 'can gather candidates'

@@ -2036,7 +2036,7 @@ fu! s:DoGetTypeInfoForFQN(fqns, srcpath, ...)
   endif
   let fqns= copy(a:fqns)
   let srcpaths= split(a:srcpath, ',')
-  let search_all= get(a:000, 0, 0)
+  let search_all= get(a:000, 0, 1)
 
   " 1
   let files = {}  " fqn -> java file path
@@ -2174,7 +2174,6 @@ fu! s:DoGetClassInfo(class, ...)
   let packagename = a:0 > 1 ? a:2 : s:GetPackageName()
   let srcpath  = join(s:GetSourceDirs(a:0 > 0 && a:1 != bufnr('%') ? a:1 : expand('%:p'), packagename), ',')
 
-  PP! {'typename': typename, 'filekey': filekey, 'packagename': packagename, 'srcpath': srcpath}
   let names = split(typename, '\.')
   " remove the package name if in the same packge
   if len(names) > 1
