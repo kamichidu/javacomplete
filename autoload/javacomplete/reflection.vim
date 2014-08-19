@@ -121,17 +121,8 @@ function! s:reflection.classes()
     return sort(classes)
 endfunction
 
-" Deprecated: use other api
-" classes is a comma separated class name
-function! s:reflection.check_exists_and_read_class_info(classes)
-    return eval(self.run_reflection('-E', a:classes))
-    " s:DoGetInfoByReflection(a:fqn, '-E')
-    " s:RunReflection('-E', commalist, 'DoGetTypeInfoForFQN in Batch')
-    " s:RunReflection('-E', commalist, 's:SearchStaticImports in Batch')
-endfunction
-
 function! s:reflection.class_info(class)
-    if has_key(self.attrs.cache, a:class)
+    if has_key(self.attrs.cache, a:class) && self.attrs.cache[a:class].tag ==# 'CLASSDEF'
         return deepcopy(self.attrs.cache[a:class])
     endif
 
@@ -142,11 +133,20 @@ function! s:reflection.class_info(class)
             for e in expr
                 let self.attrs.cache[e.name]= e
             endfor
-            return deepcopy(get(self.attrs.cache, a:class, {}))
+            let ret= get(self.attrs.cache, a:class, {})
+            if get(ret, 'tag', '') ==# 'CLASSDEF'
+                return deepcopy(ret)
+            else
+                return {}
+            endif
         elseif type(expr) == type({})
             " fqn => class info
             let self.attrs.cache[expr.name]= expr
-            return deepcopy(expr)
+            if expr.tag ==# 'CLASSDEF'
+                return deepcopy(expr)
+            else
+                return {}
+            endif
         endif
         return {}
     catch
@@ -154,32 +154,6 @@ function! s:reflection.class_info(class)
     endtry
     " s:RunReflection('-C', a:fqn, 's:DoGetReflectionClassInfo')
       " let ti = s:GetClassInfoFromSource(fqn[strridx(fqn, '.')+1:], files[fqn])
-endfunction
-
-" Deprecated: use other api
-function! s:reflection.package_or_class_info(class)
-  if has_key(self.attrs.cache, a:class)
-    return self.attrs.cache[a:class]
-  endif
-
-  let res= self.run_reflection('-E', a:class)
-  if res =~ '^[{\[]'
-    let v= eval(res)
-    if type(v) == type([])
-      let self.attrs.cache[a:class]= sort(v)
-    elseif type(v) == type({})
-      if get(v, 'tag', '') =~# '^\(PACKAGE\|CLASSDEF\)$'
-        let self.attrs.cache[a:class]= v
-      else
-        call extend(self.attrs.cache, v, 'force')
-      endif
-    endif
-    unlet v
-  else
-    throw printf('javacomplete: %s', res)
-  endif
-
-  return get(self.attrs.cache, a:class, {})
 endfunction
 
 function! s:reflection.run_reflection(option, args)

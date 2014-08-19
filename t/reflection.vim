@@ -82,4 +82,9 @@ describe 'javacomplete#reflection'
         \   'declared_classes': [],
         \}
     end
+
+    it 'gets an empty result for package fqn'
+        let class= g:R.class_info('java.util')
+        Expect class ==# {}
+    end
 end

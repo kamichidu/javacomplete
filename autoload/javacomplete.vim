@@ -1045,17 +1045,12 @@ fu! s:SearchStaticImports(name, fullmatch)
   let commalist = ''
   for typename in candidates
     if !has_key(s:cache, typename)
-      let commalist .= typename . ','
+      let class= s:reflection.class_info(typename)
+      if !empty(class)
+        let s:cache[class.name]= class
+      endif
     endif
   endfor
-  if commalist != ''
-    let res= s:reflection.check_exists_and_read_class_info(commalist)
-    if type(res) == type({})
-      for key in keys(res)
-        let s:cache[key] = s:Sort(res[key])
-      endfor
-    endif
-  endif
 
   " search in all candidates
   for typename in candidates
