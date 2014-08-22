@@ -2767,4 +2767,4 @@ fu! javacomplete#AddAndroidClassPath()
   call javacomplete#AddClassPath(s:GetCurrentAndroidClassPath())
 endfu
 
-" vim:set fdm=marker sw=2 nowrap:
+" vim:set sw=2 nowrap:
