@@ -2709,7 +2709,7 @@ endfu
 
 function! s:shellslash(path)
   if exists('+shellslash') && !&shellslash
-    return s:gsub(a:path,'\\','/')
+    return substitute(a:path,'\','/',"g")
   else
     return a:path
   endif
